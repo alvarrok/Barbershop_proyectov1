@@ -8,7 +8,7 @@ const getServices = async (req, res) => {
 };
 
 const createService = async (req, res) => {
-    const { nombre, duracion, precio } = req.body;
+    const { nombre, duracionMinutos, precio } = req.body;
     const newService = await prisma.service.create({
         data: { 
             nombre, 
