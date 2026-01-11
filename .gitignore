@@ -1,0 +1,11 @@
+# Dependencias (nunca se suben, pesan demasiado)
+node_modules/
+*/node_modules/
+
+# Variables de entorno (seguridad)
+.env
+
+# Archivos de construcción y sistema
+dist/
+build/
+.DS_Store

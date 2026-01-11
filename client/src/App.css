@@ -1,0 +1,305 @@
+/* client/src/App.css */
+:root {
+  --primary-gold: #c49b63; /* Color dorado exacto de la referencia */
+  --gold-hover: #d4ac2b;
+  --bg-darkest: #000000;   /* Fondo principal */
+  --bg-dark: #111111;      /* Fondo de secciones */
+  --bg-card: #1a1a1a;      /* Fondo de formularios/tarjetas */
+  --text-white: #ffffff;
+  --text-muted: #a0a0a0;
+  --font-main: 'Montserrat', sans-serif;
+}
+
+/* --- Estilos Globales --- */
+body {
+  background-color: var(--bg-darkest);
+  color: var(--text-white);
+  font-family: var(--font-main);
+  margin: 0;
+}
+body, html {
+    overflow-x: hidden; /* Adiós scroll horizontal */
+    width: 100%;
+}
+
+h1, h2, h3, h4, button, input, label {
+    font-family: var(--font-main) !important;
+}
+/* --- SCROLLBAR PERSONALIZADO (Estilo Pro) --- */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--primary-gold);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gold-hover);
+}
+
+.app-container {
+    min-height: 100vh;
+}
+
+/* --- Header y Navegación Estilo Referencia --- */
+.header-container {
+    background-color: rgba(0, 0, 0, 0.8); /* Semi-transparente */
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid #222;
+}
+
+.top-bar {
+    background-color: #0a0a0a;
+    color: var(--text-muted);
+    padding: 8px 5%;
+    font-size: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    letter-spacing: 1px;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 5%;
+}
+
+.logo {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-white);
+  font-style: italic; /* Toque de la referencia */
+}
+.logo span { color: var(--primary-gold); }
+
+.nav-links a {
+  color: var(--text-white);
+  text-decoration: none;
+  margin: 0 15px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+.nav-links a:hover, .nav-links a.active { color: var(--primary-gold); }
+
+/* Botón de Administrador en el Header */
+.btn-admin-header {
+    background-color: var(--primary-gold);
+    color: black !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    border-radius: 0 !important; /* Bordes cuadrados como la ref */
+    padding: 8px 20px !important;
+    transition: background-color 0.3s;
+}
+.btn-admin-header:hover { background-color: var(--gold-hover) !important; }
+
+
+/* --- Sección HERO (Imagen + Texto Principal) --- */
+.hero-section {
+    display: flex;
+    align-items: center;
+    padding: 150px 5% 80px; /* Padding superior para compensar el header fijo */
+    background-color: var(--bg-darkest);
+    min-height: 70vh;
+}
+
+.hero-image-container {
+    flex: 1;
+    display: flex;
+    justify-content: flex-start;
+    /* Hacemos que la imagen se desvanezca hacia la derecha */
+    mask-image: linear-gradient(to right, black 60%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 60%, transparent 100%);
+}
+.hero-image-container img {
+    max-height: 600px;
+    width: auto;
+    object-fit: cover;
+}
+
+.hero-content {
+    flex: 0.8;
+    padding-left: 40px;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+}
+.hero-subtitle {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+
+/* --- Layout Principal (Formularios) --- */
+.main-content-grid {
+    display: flex;
+    gap: 40px;
+    padding: 50px 5%;
+    flex-wrap: wrap;
+    background-color: var(--bg-dark); /* Fondo ligeramente diferente para separar */
+}
+
+
+/* --- Estilos de los Contenedores de Formulario --- */
+.form-section-title {
+    color: var(--text-white);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 25px;
+    font-size: 1.5rem;
+    text-align: center; /* Títulos centrados como en la ref */
+}
+
+.booking-container, .manage-container {
+    background-color: var(--bg-card);
+    padding: 40px;
+    /* Borde dorado superior sutil */
+    border-top: 3px solid var(--primary-gold); 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.manage-container {
+    /* ... tus estilos anteriores ... */
+    display: flex;
+    flex-direction: column;
+    max-height: 600px; /* Altura máxima fija */
+}
+
+.appointments-list {
+    flex: 1;
+    overflow-y: auto; /* Scroll vertical SOLO aquí */
+    padding-right: 10px; /* Espacio para el scrollbar */
+    margin-top: 20px;
+}
+
+.form-section-title {
+    margin-top: 0;
+    margin-bottom: 30px; /* Más aire debajo del título */
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(196, 155, 99, 0.2); /* Línea separadora sutil */
+}
+
+
+/* Inputs y Selects */
+.mantine-TextInput-label, 
+.mantine-Select-label, 
+.mantine-DateTimePicker-label {
+    color: var(--text-muted) !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.mantine-TextInput-input, 
+.mantine-Select-input, 
+.mantine-DateTimePicker-input {
+    background-color: transparent !important; /* Fondo transparente */
+    border: 1px solid #333 !important; /* Borde sutil */
+    border-radius: 0 !important; /* Bordes cuadrados */
+    color: var(--text-white) !important;
+    padding: 20px 15px !important; /* Inputs más altos */
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.mantine-TextInput-input:focus, 
+.mantine-Select-input:focus, 
+.mantine-DateTimePicker-input:focus {
+    border-color: var(--primary-gold) !important; /* Borde dorado al enfocar */
+    box-shadow: 0 0 10px rgba(196, 155, 99, 0.2) !important;
+}
+
+
+/* Botones Principales (Dorado) */
+.btn-gold-pro {
+    background-color: var(--primary-gold) !important;
+    color: black !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    border-radius: 0 !important;
+    height: 50px !important;
+    font-size: 1rem !important;
+    letter-spacing: 1px;
+    transition: transform 0.2s, background-color 0.2s;
+}
+.btn-gold-pro:hover {
+    background-color: var(--gold-hover) !important;
+    transform: translateY(-2px); /* Pequeño efecto de elevación */
+}
+
+/* Dropdowns (Select y DatePicker) - Modo Oscuro Pro */
+.mantine-Select-dropdown,
+.mantine-DateTimePicker-dropdown,
+.mantine-DatePicker-dropdown,
+.mantine-MonthPicker-dropdown,
+.mantine-YearPicker-dropdown,
+.mantine-TimeInput-dropdown {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--primary-gold) !important;
+    border-radius: 0 !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+
+/* Elementos dentro del calendario */
+.mantine-CalendarHeader-calendarHeaderControl,
+.mantine-CalendarHeader-calendarHeaderLevel {
+    color: var(--text-white) !important;
+    font-weight: bold;
+}
+.mantine-Day-day { color: var(--text-white) !important; }
+.mantine-Day-day:hover { background-color: #333 !important; }
+.mantine-Day-day[data-selected] {
+    background-color: var(--primary-gold) !important;
+    color: black !important;
+    font-weight: bold;
+}
+.mantine-TimeInput-timeInput {
+     color: white !important;
+     background-color: #222 !important;
+     border: 1px solid #444 !important;
+}
+
+
+/* --- Estilos para "Mis Reservas" (Tarjetas) --- */
+.appt-card-pro {
+    background-color: rgba(255,255,255,0.03) !important; /* Muy sutil */
+    border: none !important;
+    border-left: 3px solid var(--primary-gold) !important;
+    border-radius: 0 !important;
+    margin-bottom: 15px;
+}
+
+.appt-service-title {
+    color: var(--text-white);
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+}
+
+.appt-date-text {
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 15px 0;
+    font-size: 0.95rem;
+}
