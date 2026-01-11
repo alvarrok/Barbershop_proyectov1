@@ -9,11 +9,23 @@ const initializeWhatsApp = () => {
     // Si ya existe un cliente, no creamos otro encima
     if (client) return;
 
+    console.log("Iniciando cliente de WhatsApp..."); // Log para ver en Render
+
     client = new Client({
         authStrategy: new LocalAuth(),
         puppeteer: { 
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            headless: true
+            // ESTA ES LA CONFIGURACIÓN QUE ARREGLA EL SPINNER INFINITO
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', // Vital para Render
+                '--disable-gpu'
+            ]
         }
     });
 
@@ -43,23 +55,21 @@ const initializeWhatsApp = () => {
         connectionStatus = 'DISCONNECTED';
     });
 
-    // 5. DESCONEXIÓN (AQUÍ ESTÁ LA SOLUCIÓN AL CRASH)
+    // 5. DESCONEXIÓN
     client.on('disconnected', async (reason) => {
         console.log('⚠️ WhatsApp desconectado. Razón:', reason);
         connectionStatus = 'DISCONNECTED';
         qrImageUrl = null;
 
-        // IMPORTANTE: Destruimos la sesión anterior para evitar conflictos
         try {
             await client.destroy();
         } catch (error) {
             console.log('Nota: El cliente ya estaba destruido.');
         }
 
-        // Reiniciamos el cliente desde cero para generar nuevo QR
         console.log('🔄 Reiniciando cliente automáticamente...');
-        client = null; // Limpiamos la variable
-        initializeWhatsApp(); // Volvemos a iniciar
+        client = null; 
+        initializeWhatsApp(); 
     });
 
     // Iniciar cliente

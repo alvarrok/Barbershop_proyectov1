@@ -8,7 +8,7 @@ const { PrismaClient } = require('@prisma/client');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const serviceController = require('./controllers/serviceController');
 
-// --- WHATSAPP SERVICE (Importar UNA sola vez) ---
+// --- WHATSAPP SERVICE ---
 const { initializeWhatsApp, sendMessage, getStatus } = require('./services/whatsappService');
 
 const app = express();
@@ -16,11 +16,15 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = "mi_secreto_super_seguro";
 
-// Middlewares
-app.use(cors());
+// Middlewares (CORS Configurado para aceptar todo)
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
-// 1. INICIALIZAR WHATSAPP (Genera el QR)
+// 1. INICIALIZAR WHATSAPP
 initializeWhatsApp();
 
 // --- RUTAS WHATSAPP ---
@@ -64,9 +68,6 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ id: admin.id, name: admin.nombre }, SECRET_KEY, { expiresIn: '8h' });
     res.json({ token, user: admin.nombre });
 });
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-});
 
 // --- SALVAVIDAS: Evitar que el server muera si WhatsApp falla ---
 process.on('uncaughtException', (err) => {
@@ -76,8 +77,8 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('🔥 Promesa rechazada sin manejo (El servidor sigue vivo):', reason);
 });
-// --- INICIAR SERVIDOR ---
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-});
 
+// --- INICIAR SERVIDOR (Solo UNA vez al final) ---
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+});

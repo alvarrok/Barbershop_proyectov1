@@ -12,7 +12,7 @@ const createService = async (req, res) => {
     const newService = await prisma.service.create({
         data: { 
             nombre, 
-            duracionMinutos: parseInt(duracion), 
+            duracionMinutos: parseInt(duracionMinutos), 
             precio: parseFloat(precio),
             activo: true 
         }
