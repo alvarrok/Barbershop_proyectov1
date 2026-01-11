@@ -18,7 +18,8 @@ function AdminLogin() {
     if(!email || !password) return notifications.show({message: 'Por favor completa los campos', color: 'yellow'});
     setLoading(true);
     try {
-      const res = await axios.post('http://localhost:3000/api/login', { email, password });
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const res = await axios.post(`${apiUrl}/login`, { email, password });
       localStorage.setItem('adminToken', res.data.token); // Guardar token
       localStorage.setItem('adminName', res.data.user);
       notifications.show({ title: `Bienvenido, ${res.data.user}`, message: 'Has iniciado sesión correctamente.', color: 'green', icon: <IconLock/> });

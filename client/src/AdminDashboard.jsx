@@ -12,7 +12,10 @@ import 'dayjs/locale/es';
 
 // Configuración regional
 dayjs.locale('es');
-const api = axios.create({ baseURL: 'http://localhost:3000/api' });
+// AHORA:
+const api = axios.create({ 
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' 
+});
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function AdminDashboard() {
