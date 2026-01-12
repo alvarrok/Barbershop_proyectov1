@@ -9,25 +9,25 @@ const getServices = async (req, res) => {
 
 const createService = async (req, res) => {
   try {
-    // 1. AQUI ESTABA EL ERROR:
-    // El frontend manda "minutos", no "duracionMinutos".
-    // Vamos a leer "minutos" del paquete que llega.
-    const { nombre, minutos, precio, activo } = req.body;
+    // 1. Imprimimos en consola qué carajos está llegando (para verlo en los logs si falla)
+    console.log("Datos recibidos:", req.body);
 
-    // Validación rápida para que no explote si llega vacío
-    if (!minutos) {
-        return res.status(400).json({ error: 'Faltan los minutos' });
+    const { nombre, minutos, duracionMinutos, duracion, precio, activo } = req.body;
+
+    // 2. Lógica "Todoterreno": Agarramos el valor venga como venga
+    const duracionFinal = minutos || duracionMinutos || duracion;
+
+    // Si después de buscar en los 3 lados sigue vacío, ahí sí nos quejamos
+    if (!duracionFinal) {
+        console.log("Error: Falta la duración");
+        return res.status(400).json({ error: 'Faltan los minutos (Revisar nombre del campo)' });
     }
 
     const newService = await prisma.service.create({
       data: {
         nombre: nombre,
         precio: parseFloat(precio),
-        
-        // 2. ASIGNAMOS:
-        // Campo Base de Datos (duracion) = Variable que recibimos (minutos)
-        duracion: parseInt(minutos), 
-        
+        duracion: parseInt(duracionFinal), // Usamos la variable que encontramos
         activo: activo
       }
     });
@@ -35,7 +35,7 @@ const createService = async (req, res) => {
     res.json(newService);
   } catch (error) {
     console.log("Error creando servicio:", error);
-    res.status(500).json({ error: 'Error creando servicio' });
+    res.status(500).json({ error: 'Error interno creando servicio' });
   }
 };
 
