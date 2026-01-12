@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Title, TextInput, Select, Button, Card, Text, Badge, Group, Container, Grid, ActionIcon } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates'; // USAMOS ESTE AHORA
+import { Title, TextInput, Select, Button, Card, Text, Badge, Group, Container, Grid } from '@mantine/core';
+import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconCalendarEvent, IconClock, IconSearch, IconUser, IconX, IconDeviceMobile, IconId } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock, IconSearch, IconUser, IconBrandWhatsapp } from '@tabler/icons-react';
 import '@mantine/dates/styles.css'; 
 import './App.css'; 
 
@@ -13,9 +13,7 @@ import AdminDashboard from './AdminDashboard';
 
 const heroImage = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=1000&auto=format&fit=crop";
 
-const api = axios.create({ 
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' 
-});
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
 function Home() {
   const navigate = useNavigate(); 
@@ -26,7 +24,6 @@ function Home() {
   const [servicios, setServicios] = useState([]); 
   
   // ESTADOS PARA HORARIOS
-  const [occupiedSlots, setOccupiedSlots] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
 
   // 1. CARGAR SERVICIOS
@@ -34,77 +31,75 @@ function Home() {
     api.get('/services').then(res => {
         const serviciosMapeados = res.data.map(s => ({
           value: s.id.toString(),
-          label: `${s.nombre} (${s.duracion || 30} min) - S/.${s.precio}`,
-          duration: s.duracion || 30
+          label: `${s.nombre} (${s.duracion} min) - S/.${s.precio}`,
+          duracion: s.duracion
         }));
         setServicios(serviciosMapeados);
     }).catch(console.error);
   }, []);
 
-  // 2. CUANDO CAMBIA LA FECHA, BUSCAMOS CITAS OCUPADAS
+  // 2. GENERAR HORARIOS CUANDO SE ELIGE FECHA
   useEffect(() => {
     if (form.date) {
-        setForm(f => ({...f, time: null})); // Resetear hora si cambia dia
-        fetchOccupiedSlots(form.date);
+        setForm(f => ({...f, time: null})); // Reset hora si cambia dia
+        calculateSlots(form.date);
     }
   }, [form.date]);
 
-  const fetchOccupiedSlots = async (date) => {
+  const calculateSlots = async (selectedDate) => {
       try {
-          // Pedimos todas las citas para filtrar en el front (o idealmente el backend filtra por dia)
-          const res = await api.get('/appointments'); 
-          // Filtramos solo las de este día
-          const dayAppointments = res.data.filter(a => {
-              const apptDate = new Date(a.fechaInicio);
-              return apptDate.toDateString() === date.toDateString() && a.estado !== 'CANCELADO';
-          });
+          // 1. Traemos todas las citas
+          const res = await api.get('/appointments');
           
-          // Guardamos las horas ocupadas (ej: "14:30")
-          const times = dayAppointments.map(a => {
-              const d = new Date(a.fechaInicio);
-              return d.getHours() + ':' + (d.getMinutes() === 0 ? '00' : d.getMinutes());
-          });
-          setOccupiedSlots(times);
-          generateSlots(times);
-      } catch (error) { console.error(error); }
-  };
+          // 2. Filtramos las de ESE día que estén activas
+          const takenTimes = res.data
+            .filter(a => {
+                const d = new Date(a.fechaInicio);
+                return d.toDateString() === selectedDate.toDateString() && a.estado !== 'CANCELADO';
+            })
+            .map(a => {
+                const d = new Date(a.fechaInicio);
+                // Retornamos formato "14:30"
+                return `${d.getHours()}:${d.getMinutes() === 0 ? '00' : d.getMinutes()}`;
+            });
 
-  const generateSlots = (occupied) => {
-      // HORARIO DE TRABAJO: 9:00 AM a 8:00 PM (20:00)
-      const slots = [];
-      for (let hour = 9; hour < 20; hour++) {
-          const time1 = `${hour}:00`;
-          const time2 = `${hour}:30`;
-          
-          // Verificamos si está ocupado
-          // NOTA: Esto es validación simple. Para validación perfecta se necesita chequear duración.
-          slots.push({ time: time1, taken: occupied.includes(time1) || occupied.includes(`${hour}:0`)});
-          slots.push({ time: time2, taken: occupied.includes(time2) });
-      }
-      setAvailableSlots(slots);
+          // 3. Generamos bloques de 9am a 8pm (20:00) cada 30 min
+          const slots = [];
+          for (let h = 9; h < 20; h++) {
+              ['00', '30'].forEach(m => {
+                  const timeString = `${h}:${m}`;
+                  slots.push({
+                      time: timeString,
+                      taken: takenTimes.includes(timeString)
+                  });
+              });
+          }
+          setAvailableSlots(slots);
+      } catch (error) { console.error("Error slots", error); }
   };
 
   const handleSubmit = async () => {
-    if (!form.clientName || !form.clientDni || !form.clientPhone || !form.serviceId || !form.date || !form.time) {
-        return notifications.show({ message: 'Completa todos los campos y selecciona hora', color: 'red' });
-    }
+    // VALIDACIONES
+    if (!form.clientName || !form.serviceId || !form.date || !form.time) return notifications.show({ message: 'Completa todos los datos', color: 'red' });
+    if (form.clientDni.length !== 8) return notifications.show({ message: 'DNI debe tener 8 dígitos', color: 'red' });
+    if (form.clientPhone.length !== 9) return notifications.show({ message: 'Celular debe tener 9 dígitos', color: 'red' });
 
-    // Unir fecha y hora
-    const [hours, minutes] = form.time.split(':');
+    // Armar fecha final ISO
+    const [hh, mm] = form.time.split(':');
     const finalDate = new Date(form.date);
-    finalDate.setHours(parseInt(hours), parseInt(minutes), 0);
+    finalDate.setHours(parseInt(hh), parseInt(mm), 0);
 
     setLoading(true);
     try {
         await api.post('/appointments', {
             ...form,
-            dateISO: finalDate // Enviamos el formato que el backend espera
+            dateISO: finalDate // Enviamos fecha completa al backend
         });
         notifications.show({ title: '¡Reserva Exitosa!', message: 'Te esperamos.', color: 'green', icon: <IconCalendarEvent/> });
         setForm({ clientName: '', clientDni: '', clientPhone: '', serviceId: '', date: null, time: null });
         setAvailableSlots([]);
     } catch (error) {
-        notifications.show({ message: 'Error o horario no disponible', color: 'red' });
+        notifications.show({ message: 'Error al reservar. Intenta otro horario.', color: 'red' });
     }
     setLoading(false);
   };
@@ -112,10 +107,15 @@ function Home() {
   const handleSearch = async () => {
      if(!searchDni) return;
      try {
-       const res = await api.get(`/appointments/${searchDni}`);
+       const res = await api.get(`/appointments/dni/${searchDni}`); // Asegúrate que esta ruta exista en backend
        setMyAppointments(res.data);
-       if(res.data.length === 0) notifications.show({message: 'No se encontraron citas', color: 'yellow'});
-     } catch (error) { notifications.show({message: 'Error de conexión', color: 'red'}); }
+       if(res.data.length === 0) notifications.show({message: 'No hay citas para este DNI', color: 'yellow'});
+     } catch (error) { 
+         // Fallback si no existe la ruta especifica, intenta filtrar
+         const all = await api.get('/appointments');
+         const filtered = all.data.filter(a => a.clienteDni === searchDni);
+         setMyAppointments(filtered);
+     }
   };
 
   return (
@@ -136,6 +136,7 @@ function Home() {
 
       <Container size="xl" id="booking-area" py="xl">
         <Grid gutter="xl">
+            {/* IZQUIERDA: FORMULARIO */}
             <Grid.Col span={{ base: 12, md: 6 }}>
                 <Card shadow="sm" padding="lg" radius="md" withBorder style={{background:'#1a1a1a', borderColor:'#333'}}>
                     <Title order={3} c="white" mb="lg" style={{borderBottom:'2px solid #c49b63', display:'inline-block'}}>RESERVAR CITA</Title>
@@ -145,36 +146,36 @@ function Home() {
                             <Grid.Col span={6}><TextInput label="DNI" maxLength={8} value={form.clientDni} onChange={(e) => setForm({...form, clientDni: e.target.value.replace(/\D/g, '')})} styles={{input:{background:'#25262b', color:'white', border:'1px solid #444'}, label:{color:'#ccc'}}}/></Grid.Col>
                             <Grid.Col span={6}><TextInput label="CELULAR" maxLength={9} value={form.clientPhone} onChange={(e) => setForm({...form, clientPhone: e.target.value.replace(/\D/g, '')})} styles={{input:{background:'#25262b', color:'white', border:'1px solid #444'}, label:{color:'#ccc'}}}/></Grid.Col>
                         </Grid>
+                        
                         <Select label="SERVICIO" placeholder="Elige corte" data={servicios} value={form.serviceId} onChange={(val) => setForm({...form, serviceId: val})} styles={{input:{background:'#25262b', color:'white', border:'1px solid #444'}, label:{color:'#ccc'}, dropdown:{background:'#25262b', color:'white'}}}/>
                         
-                        {/* SELECCIÓN DE FECHA */}
+                        {/* FECHA */}
                         <DatePickerInput 
-                            label="SELECCIONA FECHA" 
-                            placeholder="¿Qué día vienes?" 
-                            minDate={new Date()} 
-                            value={form.date} 
-                            onChange={(d) => setForm({...form, date: d})}
+                            label="SELECCIONA FECHA" placeholder="Elige un día" minDate={new Date()} 
+                            value={form.date} onChange={(d) => setForm({...form, date: d})}
                             styles={{input:{background:'#25262b', color:'white', border:'1px solid #444'}, label:{color:'#ccc'}}}
                         />
 
-                        {/* GRILLA DE HORARIOS */}
+                        {/* HORAS DISPONIBLES */}
                         {form.date && (
                             <div>
                                 <Text size="sm" c="#ccc" mb="xs">HORARIOS DISPONIBLES:</Text>
-                                <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px'}}>
-                                    {availableSlots.map((slot) => (
-                                        <Button 
-                                            key={slot.time} 
-                                            variant={form.time === slot.time ? "filled" : "outline"} 
-                                            color={form.time === slot.time ? "yellow" : "gray"}
-                                            disabled={slot.taken}
-                                            onClick={() => setForm({...form, time: slot.time})}
-                                            styles={{root: { borderColor: slot.taken ? '#333' : '#c49b63', color: slot.taken ? '#555' : 'white'}}}
-                                        >
-                                            {slot.taken ? <Text td="line-through" c="dimmed" size="xs">{slot.time}</Text> : slot.time}
-                                        </Button>
-                                    ))}
-                                </div>
+                                {availableSlots.length > 0 ? (
+                                    <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'8px'}}>
+                                        {availableSlots.map((slot) => (
+                                            <Button 
+                                                key={slot.time} compact 
+                                                variant={form.time === slot.time ? "filled" : "outline"} 
+                                                color={form.time === slot.time ? "yellow" : "gray"}
+                                                disabled={slot.taken}
+                                                onClick={() => setForm({...form, time: slot.time})}
+                                                styles={{root: { borderColor: slot.taken ? '#333' : '#c49b63', color: slot.taken ? '#555' : 'white'}}}
+                                            >
+                                                {slot.taken ? <Text td="line-through" c="dimmed" size="xs">{slot.time}</Text> : slot.time}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                ) : <Text c="dimmed" size="sm">Cargando horarios...</Text>}
                             </div>
                         )}
 
@@ -183,7 +184,7 @@ function Home() {
                 </Card>
             </Grid.Col>
 
-            {/* MIS RESERVAS (Igual que antes pero responsive) */}
+            {/* DERECHA: MIS CITAS */}
             <Grid.Col span={{ base: 12, md: 6 }}>
                 <Card shadow="sm" padding="lg" radius="md" withBorder style={{background:'#1a1a1a', borderColor:'#333', height:'100%'}}>
                     <Title order={3} c="white" mb="lg">MIS CITAS</Title>
@@ -193,12 +194,15 @@ function Home() {
                     </Group>
                     <div>
                         {myAppointments.map((appt) => (
-                        <Card key={appt.id} mb="sm" padding="md" radius="sm" style={{background:'#25262b', borderLeft:`4px solid ${appt.estado === 'PENDIENTE'?'#c49b63':'green'}`}}>
+                        <Card key={appt.id} mb="sm" padding="md" radius="sm" style={{background:'#25262b', borderLeft:`4px solid ${appt.estado === 'PENDIENTE'?'#c49b63': appt.estado==='COMPLETADO'?'#228be6':'green'}`}}>
                             <Group justify="space-between">
                                 <Text fw={700} c="white">{appt.service?.nombre}</Text>
-                                <Badge color={appt.estado==='PENDIENTE'?'yellow':'green'}>{appt.estado}</Badge>
+                                <Badge color={appt.estado==='PENDIENTE'?'yellow': appt.estado==='COMPLETADO'?'blue':'green'}>{appt.estado}</Badge>
                             </Group>
-                            <Text size="sm" c="dimmed">{new Date(appt.fechaInicio).toLocaleString()}</Text>
+                            <Group mt="xs">
+                                <IconCalendarEvent size={16} color="gray"/>
+                                <Text size="sm" c="dimmed">{new Date(appt.fechaInicio).toLocaleDateString()} - {new Date(appt.fechaInicio).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</Text>
+                            </Group>
                         </Card>
                         ))}
                     </div>

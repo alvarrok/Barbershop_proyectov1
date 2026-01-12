@@ -3,7 +3,7 @@ import axios from 'axios';
 import { AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, TextInput, NumberInput, Card, Grid, Menu, ScrollArea, Box, Collapse, Avatar, Center, Loader, Image } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
-import { IconLogout, IconCalendar, IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage } from '@tabler/icons-react';
+import { IconLogout, IconCalendar, IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -15,21 +15,28 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://loca
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  
+  // --- DATOS ---
   const [appointments, setAppointments] = useState([]);
   const [services, setServices] = useState([]);
+  
+  // --- UI STATES ---
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedAppt, setSelectedAppt] = useState(null);
   
-  // ESTADO SERVICIOS (Edición y Creación)
+  // ESTADO SERVICIOS
   const [formService, setFormService] = useState({ id: null, nombre: '', minutos: 30, precio: 0 });
   const [isEditingService, setIsEditingService] = useState(false);
+  
+  // ESTADOS MODALES
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const [pendingAppts, setPendingAppts] = useState([]);
   const [waStatus, setWaStatus] = useState('DISCONNECTED');
   const [waQR, setWaQR] = useState(null);
-  const [showQRModal, setShowQRModal] = useState(false);
+  
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState(null);
   const [finStartDate, setFinStartDate] = useState(dayjs().startOf('month').toDate());
@@ -64,9 +71,8 @@ export default function AdminDashboard() {
       const dateStr = dayjs(appt.fechaInicio).format('DD/MM HH:mm');
       let msg = '';
       
-      // TEXTOS PERSONALIZADOS
       if (type === 'confirm') msg = `Hola ${name}, tu cita en BarberShop para el ${dateStr} está confirmada. ¡Nos vemos! 💈`;
-      if (type === 'avisar') msg = `Hola ${name}, te escribimos de BarberShop para recordarte tu cita hoy a las ${dayjs(appt.fechaInicio).format('HH:mm')}. ¡Te esperamos!`;
+      if (type === 'avisar') msg = `Hola ${name}, recordatorio de tu cita hoy a las ${dayjs(appt.fechaInicio).format('HH:mm')}. ¡Te esperamos!`;
       if (type === 'cancel') msg = `Hola ${name}, tu cita del ${dateStr} ha sido cancelada.`;
       if (type === 'completed') msg = `Hola ${name}, ¡gracias por tu visita!`;
 
@@ -80,17 +86,17 @@ export default function AdminDashboard() {
   const handleConfirmCut = async () => {
     if(!selectedAppt) return;
     try {
-        await api.put(`/appointments/${selectedAppt.id}`, { estado: 'COMPLETADO' }); // Asegúrate de haber hecho el PASO 1 (Prisma)
+        await api.put(`/appointments/${selectedAppt.id}`, { estado: 'COMPLETADO' });
         notifications.show({ message: 'Cobrado y guardado 💰', color: 'blue', icon: <IconCheck/> });
         fetchData(); setSelectedAppt(null);
-    } catch (error) { notifications.show({ message: 'Error (Revisa consola o Prisma Enum)', color: 'red' }); }
+    } catch (error) { notifications.show({ message: 'Error (Revisa backend)', color: 'red' }); }
   };
 
   // --- LOGICA SERVICIOS ---
   const handleSaveService = async () => {
     if(!formService.nombre) return notifications.show({message:'Falta nombre', color:'red'});
     try {
-        const payload = { ...formService, minutos: formService.minutos }; // Aseguramos enviar minutos
+        const payload = { ...formService, duracion: formService.minutos };
         if(isEditingService) {
             await api.put(`/services/${formService.id}`, payload);
             notifications.show({ message: 'Actualizado', color: 'green' });
@@ -109,9 +115,22 @@ export default function AdminDashboard() {
       setIsEditingService(true);
   };
 
+  // ESTA FUNCION ABRE EL MODAL (Ya no usa window.confirm)
+  const handleDeleteClick = (id) => {
+      setServiceToDelete(id);
+      setDeleteModalOpen(true);
+  };
+
+  // ESTA FUNCION EJECUTA EL BORRADO REAL
   const confirmDeleteService = async () => {
-      await api.delete(`/services/${serviceToDelete}`);
-      fetchData(); setDeleteModalOpen(false);
+      try {
+        await api.delete(`/services/${serviceToDelete}`);
+        fetchData(); 
+        notifications.show({ message: 'Servicio eliminado', color: 'green' });
+      } catch(e) {
+        notifications.show({ message: 'Error al eliminar', color: 'red' });
+      }
+      setDeleteModalOpen(false);
   };
 
   // RENDERIZADO
@@ -222,6 +241,7 @@ export default function AdminDashboard() {
                         {isEditingService && <Button variant="default" onClick={()=>{setIsEditingService(false); setFormService({id:null, nombre:'', minutos:30, precio:0})}}>Cancelar</Button>}
                     </Group>
                     <Table>
+                        {/* TABLA CORREGIDA CON COLUMNA DURACION */}
                         <Table.Thead><Table.Tr><Table.Th c="dimmed">Nombre</Table.Th><Table.Th c="dimmed">Duración</Table.Th><Table.Th c="dimmed">Precio</Table.Th><Table.Th>Acciones</Table.Th></Table.Tr></Table.Thead>
                         <Table.Tbody>
                             {services.map(s => (
@@ -232,7 +252,7 @@ export default function AdminDashboard() {
                                     <Table.Td>
                                         <Group gap="xs">
                                             <ActionIcon color="blue" variant="subtle" onClick={() => handleEditClick(s)}><IconPencil size={16}/></ActionIcon>
-                                            <ActionIcon color="red" variant="subtle" onClick={() => {setServiceToDelete(s.id); setDeleteModalOpen(true);}}><IconTrash size={16}/></ActionIcon>
+                                            <ActionIcon color="red" variant="subtle" onClick={() => handleDeleteClick(s.id)}><IconTrash size={16}/></ActionIcon>
                                         </Group>
                                     </Table.Td>
                                 </Table.Tr>
@@ -250,18 +270,25 @@ export default function AdminDashboard() {
             </Center>
         </Modal>
 
-        {/* MODAL CITA - CORREGIDO */}
+        {/* MODAL CITA - CON TODOS LOS DATOS */}
         <Modal opened={!!selectedAppt} onClose={() => setSelectedAppt(null)} title="Gestión de Cita" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
             {selectedAppt && (
                 <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                     <Group justify="space-between">
                         <div>
                             <Text size="lg" fw={700} c="white">{selectedAppt.clienteNombre}</Text>
-                            <Text size="sm" c="yellow" fw={700} tt="uppercase">{selectedAppt.service?.nombre}</Text> {/* AQUÍ SALE EL SERVICIO */}
+                            <Text size="sm" c="yellow" fw={700} tt="uppercase">{selectedAppt.service?.nombre}</Text>
                         </div>
                         <Badge color={selectedAppt.estado === 'COMPLETADO' ? 'blue' : selectedAppt.estado === 'PENDIENTE' ? 'yellow' : 'red'}>{selectedAppt.estado}</Badge>
                     </Group>
                     
+                    {/* DATOS COMPLETOS DE LA CITA */}
+                    <Card withBorder style={{background:'#1a1a1a', borderColor:'#333', padding:'10px'}}>
+                        <Group mb={5}><IconId size={16} color="gray"/><Text size="sm" c="dimmed">DNI: <span style={{color:'white'}}>{selectedAppt.clienteDni}</span></Text></Group>
+                        <Group mb={5}><IconPhone size={16} color="gray"/><Text size="sm" c="dimmed">Tel: <span style={{color:'white'}}>{selectedAppt.clientePhone}</span></Text></Group>
+                        <Group><IconClock size={16} color="gray"/><Text size="sm" c="dimmed">Fecha: <span style={{color:'white'}}>{dayjs(selectedAppt.fechaInicio).format('DD/MM/YYYY hh:mm A')}</span></Text></Group>
+                    </Card>
+
                     {selectedAppt.estado !== 'COMPLETADO' && selectedAppt.estado !== 'CANCELADO' && (
                         <Button leftSection={<IconCheck size={20}/>} color="blue" fullWidth onClick={handleConfirmCut}>Confirmar y Cobrar (S/.{selectedAppt.service?.precio})</Button>
                     )}
@@ -275,7 +302,9 @@ export default function AdminDashboard() {
             )}
         </Modal>
 
-        <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="¿Borrar?" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
+        {/* MODAL ELIMINAR SERVICIO (Ya no usa alert) */}
+        <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="¿Eliminar Servicio?" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
+            <Text c="dimmed" size="sm" mb="lg">Esta acción borrará el servicio permanentemente.</Text>
             <Group justify="flex-end">
                 <Button variant="default" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button>
                 <Button color="red" onClick={confirmDeleteService}>Eliminar</Button>
