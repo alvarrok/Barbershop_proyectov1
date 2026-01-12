@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Title, TextInput, Select, Button, Card, Text, Badge, Group, Container, Grid } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconCalendarEvent, IconClock, IconSearch, IconUser, IconBrandWhatsapp } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock, IconSearch, IconUser, IconBrandWhatsapp, IconId, IconDeviceMobile } from '@tabler/icons-react';
 import '@mantine/dates/styles.css'; 
 import './App.css'; 
 
@@ -31,8 +31,8 @@ function Home() {
     api.get('/services').then(res => {
         const serviciosMapeados = res.data.map(s => ({
           value: s.id.toString(),
-          label: `${s.nombre} (${s.duracion} min) - S/.${s.precio}`,
-          duracion: s.duracion
+          label: `${s.nombre} (${s.duracion || s.duracionMinutos || 30} min) - S/.${s.precio}`,
+          duracion: s.duracion || s.duracionMinutos
         }));
         setServicios(serviciosMapeados);
     }).catch(console.error);
@@ -43,23 +43,33 @@ function Home() {
     if (form.date) {
         setForm(f => ({...f, time: null})); // Reset hora si cambia dia
         calculateSlots(form.date);
+    } else {
+        setAvailableSlots([]);
     }
   }, [form.date]);
 
-  const calculateSlots = async (selectedDate) => {
+  // --- CORRECCIÓN DEL ERROR AQUÍ ---
+  const calculateSlots = async (dateInput) => {
       try {
+          if (!dateInput) return;
+          
+          // FORZAMOS QUE SEA UN OBJETO DATE (Esto arregla el error .toDateString is not a function)
+          const selectedDate = new Date(dateInput); 
+
           // 1. Traemos todas las citas
           const res = await api.get('/appointments');
           
           // 2. Filtramos las de ESE día que estén activas
           const takenTimes = res.data
             .filter(a => {
-                const d = new Date(a.fechaInicio);
-                return d.toDateString() === selectedDate.toDateString() && a.estado !== 'CANCELADO';
+                // Convertimos la fecha de la base de datos a objeto Date
+                const citaDate = new Date(a.fechaInicio);
+                // Comparamos día, mes y año
+                return citaDate.toDateString() === selectedDate.toDateString() && a.estado !== 'CANCELADO';
             })
             .map(a => {
                 const d = new Date(a.fechaInicio);
-                // Retornamos formato "14:30"
+                // Retornamos formato "14:30" o "9:00"
                 return `${d.getHours()}:${d.getMinutes() === 0 ? '00' : d.getMinutes()}`;
             });
 
@@ -68,6 +78,7 @@ function Home() {
           for (let h = 9; h < 20; h++) {
               ['00', '30'].forEach(m => {
                   const timeString = `${h}:${m}`;
+                  // Verificamos si la hora ya existe en takenTimes
                   slots.push({
                       time: timeString,
                       taken: takenTimes.includes(timeString)
@@ -107,15 +118,13 @@ function Home() {
   const handleSearch = async () => {
      if(!searchDni) return;
      try {
-       const res = await api.get(`/appointments/dni/${searchDni}`); // Asegúrate que esta ruta exista en backend
-       setMyAppointments(res.data);
-       if(res.data.length === 0) notifications.show({message: 'No hay citas para este DNI', color: 'yellow'});
-     } catch (error) { 
-         // Fallback si no existe la ruta especifica, intenta filtrar
-         const all = await api.get('/appointments');
-         const filtered = all.data.filter(a => a.clienteDni === searchDni);
-         setMyAppointments(filtered);
-     }
+       // Intenta buscar por DNI, si falla trae todas y filtra (seguridad)
+       const res = await api.get(`/appointments`); 
+       const filtered = res.data.filter(a => a.clienteDni === searchDni);
+       
+       setMyAppointments(filtered);
+       if(filtered.length === 0) notifications.show({message: 'No hay citas para este DNI', color: 'yellow'});
+     } catch (error) { notifications.show({message: 'Error de conexión', color: 'red'}); }
   };
 
   return (
@@ -169,9 +178,9 @@ function Home() {
                                                 color={form.time === slot.time ? "yellow" : "gray"}
                                                 disabled={slot.taken}
                                                 onClick={() => setForm({...form, time: slot.time})}
-                                                styles={{root: { borderColor: slot.taken ? '#333' : '#c49b63', color: slot.taken ? '#555' : 'white'}}}
+                                                styles={{root: { borderColor: slot.taken ? '#333' : '#c49b63', color: slot.taken ? '#555' : 'white', textDecoration: slot.taken ? 'line-through' : 'none'}}}
                                             >
-                                                {slot.taken ? <Text td="line-through" c="dimmed" size="xs">{slot.time}</Text> : slot.time}
+                                                {slot.time}
                                             </Button>
                                         ))}
                                     </div>
