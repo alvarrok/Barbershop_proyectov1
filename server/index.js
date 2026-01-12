@@ -55,7 +55,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.get('/api/services', serviceController.getServices);
 app.post('/api/services', serviceController.createService);
 app.delete('/api/services/:id', serviceController.deleteService);
-
+app.put('/api/services/:id', serviceController.updateService); // <--- AGREGA ESTA LÍNEA
 // --- RUTA LOGIN ADMIN ---
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;

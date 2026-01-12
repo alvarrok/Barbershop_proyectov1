@@ -50,5 +50,27 @@ const deleteService = async (req, res) => {
         res.status(400).json({ error: "No se puede eliminar un servicio que tiene citas históricas." });
     }
 };
+// Actualizar servicio existente
+const updateService = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, minutos, duracionMinutos, duracion, precio, activo } = req.body;
 
-module.exports = { getServices, createService, deleteService };
+  try {
+    const duracionFinal = minutos || duracionMinutos || duracion;
+
+    const updatedService = await prisma.service.update({
+      where: { id: parseInt(id) },
+      data: {
+        nombre,
+        precio: parseFloat(precio),
+        duracion: parseInt(duracionFinal),
+        activo: active
+      }
+    });
+    res.json(updatedService);
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudo actualizar el servicio' });
+  }
+};
+
+module.exports = { getServices, createService, deleteService, updateService };
