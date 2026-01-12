@@ -29,6 +29,10 @@ export default function AdminDashboard() {
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [newService, setNewService] = useState({ nombre: '', duracion: 30, precio: 0 });
   const [pendingAppts, setPendingAppts] = useState([]);
+
+  // --- MODAL ELIMINAR SERVICIO (NUEVO) ---
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState(null);
   
   // --- WHATSAPP STATES ---
   const [waStatus, setWaStatus] = useState('DISCONNECTED');
@@ -66,7 +70,6 @@ export default function AdminDashboard() {
 
       setAppointments(sortedAppts);
       setServices(resServices.data);
-      // Pendientes son solo las que dicen PENDIENTE
       setPendingAppts(sortedAppts.filter(a => a.estado === 'PENDIENTE'));
     } catch (error) { console.error(error); }
   };
@@ -108,21 +111,12 @@ export default function AdminDashboard() {
       }
   };
 
-  // --- ACCIONES CITA (CONFIRMAR, ELIMINAR SERVICIOS, ETC) ---
-  
-  // NUEVO: Función para confirmar corte y sumar a finanzas
+  // --- ACCIONES CITA ---
   const handleConfirmCut = async () => {
     if(!selectedAppt) return;
     try {
-        // Asumimos que tu backend acepta actualizar 'estado' a 'COMPLETADO'
-        // Si tu backend no tiene este estado en Prisma, asegúrate de agregarlo o usar un campo booleano 'pagado'
         await api.put(`/appointments/${selectedAppt.id}`, { estado: 'COMPLETADO' });
-        
         notifications.show({ message: 'Corte completado y sumado a caja 💰', color: 'blue', icon: <IconCheck/> });
-        
-        // Opcional: Enviar mensaje de agradecimiento
-        // sendWhatsAppInternal(selectedAppt, 'completed');
-        
         fetchData();
         setSelectedAppt(null);
     } catch (error) {
@@ -140,13 +134,22 @@ export default function AdminDashboard() {
     } catch(e) { notifications.show({ message: 'Error', color: 'red' }); }
   };
   
-  const handleDeleteService = async (id) => {
-      if(!window.confirm("¿Eliminar servicio?")) return;
+  // --- LÓGICA MODAL ELIMINAR (NUEVO) ---
+  const openDeleteModal = (id) => {
+      setServiceToDelete(id);
+      setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteService = async () => {
       try {
-          await api.delete(`/services/${id}`);
+          await api.delete(`/services/${serviceToDelete}`);
           fetchData();
-          notifications.show({ message: 'Eliminado', color: 'green' });
-      } catch (e) { notifications.show({ message: 'No se puede eliminar', color: 'red' }); }
+          notifications.show({ message: 'Servicio eliminado correctamente', color: 'green' });
+      } catch (e) { 
+          notifications.show({ message: 'No se puede eliminar el servicio', color: 'red' }); 
+      }
+      setDeleteModalOpen(false);
+      setServiceToDelete(null);
   };
 
   // --- RENDER AGENDA ---
@@ -167,9 +170,8 @@ export default function AdminDashboard() {
                           <div style={{width:'80px', borderRight:'1px solid #333', padding:'20px 10px', color:'#777', fontWeight:'bold', fontSize:'0.9rem'}}>{h}:00</div>
                           <div style={{flex:1, padding:'5px', background: hourAppts.length > 0 ? 'rgba(196, 155, 99, 0.05)' : 'transparent'}}>
                               {hourAppts.map(appt => {
-                                  // Color según estado
-                                  let statusColor = '#c49b63'; // Pendiente (Amarillo/Dorado)
-                                  if (appt.estado === 'COMPLETADO') statusColor = '#228be6'; // Completado (Azul)
+                                  let statusColor = '#c49b63'; 
+                                  if (appt.estado === 'COMPLETADO') statusColor = '#228be6'; 
 
                                   return (
                                     <Card key={appt.id} shadow="sm" padding="xs" radius="sm" onClick={() => setSelectedAppt(appt)}
@@ -191,31 +193,26 @@ export default function AdminDashboard() {
       )
   };
 
-  // --- LÓGICA FINANCIERA (MODIFICADA) ---
+  // --- LÓGICA FINANCIERA ---
   const getFinancialData = () => {
       const start = dayjs(finStartDate).startOf('day');
       const end = dayjs(finEndDate).endOf('day');
       
-      // SOLO sumamos lo que está COMPLETADO
       const filtered = appointments.filter(a => {
           const d = dayjs(a.fechaInicio);
           return d.isAfter(start) && d.isBefore(end) && a.estado === 'COMPLETADO';
       });
 
-      // Ordenar por fecha DESCENDENTE
       filtered.sort((a, b) => new Date(b.fechaInicio) - new Date(a.fechaInicio));
 
       const total = filtered.reduce((acc, curr) => acc + Number(curr.service?.precio || 0), 0);
       
-      // Datos Gráfico (Ingresos por día)
       const graphDataMap = {};
       filtered.forEach(a => {
-           // Usamos fecha invertida para ordenamiento
            const d = dayjs(a.fechaInicio).format('YYYY-MM-DD');
            graphDataMap[d] = (graphDataMap[d] || 0) + Number(a.service?.precio || 0);
       });
       
-      // Convertir a array para Recharts y ordenar cronológicamente
       const graphData = Object.keys(graphDataMap).sort().map(k => ({ 
           name: dayjs(k).format('DD/MM'), 
           Ingresos: graphDataMap[k] 
@@ -321,7 +318,6 @@ export default function AdminDashboard() {
                         </Card>
                     </Grid.Col>
                     
-                    {/* NUEVO: GRÁFICO DE INGRESOS */}
                     <Grid.Col span={{base:12, md:6}}>
                         <Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'100%', minHeight:'300px'}}>
                             <Group mb="md"><IconChartArea color="cyan" /><Text fw={700} c="white">EVOLUCIÓN DE INGRESOS</Text></Group>
@@ -370,7 +366,6 @@ export default function AdminDashboard() {
                 </Grid>
             </Tabs.Panel>
             
-            {/* SERVICIOS */}
             <Tabs.Panel value="services">
                  <Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}>
                     <Group align="flex-end" mb="lg">
@@ -385,7 +380,8 @@ export default function AdminDashboard() {
                                 <Table.Tr key={s.id}>
                                     <Table.Td style={{color:'white'}}>{s.nombre}</Table.Td>
                                     <Table.Td style={{color:'#c49b63'}}>S/.{s.precio}</Table.Td>
-                                    <Table.Td><ActionIcon color="red" variant="subtle" onClick={() => handleDeleteService(s.id)}><IconTrash size={16}/></ActionIcon></Table.Td>
+                                    {/* AQUI ESTA EL CAMBIO: LLAMA A LA FUNCION QUE ABRE EL MODAL */}
+                                    <Table.Td><ActionIcon color="red" variant="subtle" onClick={() => openDeleteModal(s.id)}><IconTrash size={16}/></ActionIcon></Table.Td>
                                 </Table.Tr>
                             ))}
                         </Table.Tbody>
@@ -413,7 +409,7 @@ export default function AdminDashboard() {
             </Center>
         </Modal>
 
-        {/* MODAL DETALLE CITA (MODIFICADO) */}
+        {/* MODAL DETALLE CITA */}
         <Modal opened={!!selectedAppt} onClose={() => {setSelectedAppt(null); setIsRescheduling(false);}} title="Gestión de Cita" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
             {selectedAppt && (
                 <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
@@ -426,7 +422,6 @@ export default function AdminDashboard() {
                         <Group><IconBrandWhatsapp size={16} color="gray"/><Text size="sm" c="dimmed">Tel: {selectedAppt.clientePhone}</Text></Group>
                     </Card>
                     
-                    {/* BOTÓN DE CONFIRMACIÓN DE PAGO */}
                     {selectedAppt.estado !== 'COMPLETADO' && selectedAppt.estado !== 'CANCELADO' && (
                         <Button 
                             leftSection={<IconCheck size={20}/>} 
@@ -467,6 +462,17 @@ export default function AdminDashboard() {
                     )}
                 </div>
             )}
+        </Modal>
+
+        {/* MODAL DE CONFIRMACIÓN DE ELIMINAR (NUEVO) */}
+        <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="¿Estás seguro?" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
+            <Text c="dimmed" size="sm" mb="lg">
+                Estás a punto de eliminar un servicio. Esta acción no se puede deshacer.
+            </Text>
+            <Group justify="flex-end">
+                <Button variant="default" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button>
+                <Button color="red" onClick={confirmDeleteService}>Eliminar Servicio</Button>
+            </Group>
         </Modal>
       </AppShell.Main>
     </AppShell>
