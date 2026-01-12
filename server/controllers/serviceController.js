@@ -8,16 +8,35 @@ const getServices = async (req, res) => {
 };
 
 const createService = async (req, res) => {
-    const { nombre, duracionMinutos, precio } = req.body;
+  try {
+    // 1. AQUI ESTABA EL ERROR:
+    // El frontend manda "minutos", no "duracionMinutos".
+    // Vamos a leer "minutos" del paquete que llega.
+    const { nombre, minutos, precio, activo } = req.body;
+
+    // Validación rápida para que no explote si llega vacío
+    if (!minutos) {
+        return res.status(400).json({ error: 'Faltan los minutos' });
+    }
+
     const newService = await prisma.service.create({
-        data: { 
-            nombre, 
-            duracionMinutos: parseInt(duracionMinutos), 
-            precio: parseFloat(precio),
-            activo: true 
-        }
+      data: {
+        nombre: nombre,
+        precio: parseFloat(precio),
+        
+        // 2. ASIGNAMOS:
+        // Campo Base de Datos (duracion) = Variable que recibimos (minutos)
+        duracion: parseInt(minutos), 
+        
+        activo: activo
+      }
     });
+    
     res.json(newService);
+  } catch (error) {
+    console.log("Error creando servicio:", error);
+    res.status(500).json({ error: 'Error creando servicio' });
+  }
 };
 
 const deleteService = async (req, res) => {
