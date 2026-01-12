@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'; // 1. Importamos Router
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Title, TextInput, Select, Button, Card, Text, Badge, Group, Modal } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
@@ -8,33 +8,36 @@ import { IconCalendarEvent, IconClock, IconSearch, IconUser, IconX } from '@tabl
 import '@mantine/dates/styles.css'; 
 import './App.css'; 
 
-// Importamos las vistas del Administrador (Asegúrate de haber creado estos archivos)
+// Importamos las vistas del Administrador
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 
-// URL de imagen (puedes cambiarla por tu import local si prefieres)
+// URL de imagen
 const heroImage = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=1000&auto=format&fit=crop";
 
-const api = axios.create({ baseURL: 'http://localhost:3000/api' });
+// --- CORRECCIÓN VITAL AQUÍ ---
+// Usa la variable de entorno si existe (Nube), si no, usa localhost (Tu PC)
+const api = axios.create({ 
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' 
+});
 
 // --- COMPONENTE HOME (Tu Landing Page Refactorizada) ---
 function Home() {
-  const navigate = useNavigate(); // Hook para navegar entre páginas
+  const navigate = useNavigate(); 
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ clientName: '', clientDni: '', clientPhone: '', serviceId: '', dateISO: null });
   const [searchDni, setSearchDni] = useState('');
   const [myAppointments, setMyAppointments] = useState([]);
   const [rescheduleDates, setRescheduleDates] = useState({});
-  const [servicios, setServicios] = useState([]); // Ahora los servicios vienen del Backend
+  const [servicios, setServicios] = useState([]); 
 
   // Cargar servicios reales al iniciar la página
   useEffect(() => {
     api.get('/services')
       .then(res => {
-        // Transformamos los datos para que el Select de Mantine los entienda
         const serviciosMapeados = res.data.map(s => ({
           value: s.id.toString(),
-          label: `${s.nombre} (${s.duracionMinutos} min) - S/.${s.precio}`
+          label: `${s.nombre} (${s.duracionMinutos || s.duracion} min) - S/.${s.precio}`
         }));
         setServicios(serviciosMapeados);
       })
@@ -64,7 +67,7 @@ function Home() {
      } catch (error) { notifications.show({message: 'Error de conexión', color: 'red'}); }
   };
 
-  // Lógica para CANCELAR CITA (Nuevo)
+  // Lógica para CANCELAR CITA
   const handleCancelClient = async (appointmentId) => {
     if(!window.confirm("¿Seguro que deseas cancelar esta cita?")) return;
     try {
@@ -107,7 +110,6 @@ function Home() {
               <a href="#nosotros">Nosotros</a>
               <a href="#contacto">Contacto</a>
             </div>
-            {/* BOTÓN LOGIN: Ahora usa navigate */}
             <Button className="btn-admin-header" leftIcon={<IconUser size={18}/>} onClick={() => navigate('/admin')}>
                 Ingresa Administrador
             </Button>
@@ -199,7 +201,6 @@ function Home() {
                       <Button className="btn-gold-pro" style={{height:'42px'}} onClick={() => handleReschedule(appt.id)}>Guardar</Button>
                     </Group>
                     
-                    {/* BOTÓN CANCELAR */}
                     <Button variant="outline" color="red" fullWidth size="xs" onClick={() => handleCancelClient(appt.id)} leftSection={<IconX size={14}/>} 
                       styles={{root: {borderColor: '#ff4d4d', color: '#ff4d4d', '&:hover': { backgroundColor: 'rgba(255, 77, 77, 0.1)' }}}}>
                       Cancelar esta cita
