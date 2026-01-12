@@ -1,11 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// 1. OBTENER CITAS (Para pintar la agenda y validar horarios)
+// 1. OBTENER TODAS LAS CITAS
 const getAppointments = async (req, res) => {
   try {
     const appointments = await prisma.appointment.findMany({
-      include: { service: true }, // Traemos info del servicio (nombre, precio)
+      include: { service: true },
       orderBy: { fechaInicio: 'desc' }
     });
     res.json(appointments);
@@ -14,17 +14,15 @@ const getAppointments = async (req, res) => {
   }
 };
 
-// 2. CREAR CITA (Calculando Fecha Fin Automáticamente)
+// 2. CREAR CITA
 const createAppointment = async (req, res) => {
   try {
     const { clientName, clientDni, clientPhone, dateISO, serviceId } = req.body;
 
-    // Buscamos cuánto dura el servicio para calcular la hora de salida
     const service = await prisma.service.findUnique({ where: { id: parseInt(serviceId) } });
     if (!service) return res.status(400).json({ error: 'Servicio no encontrado' });
 
     const fechaInicio = new Date(dateISO);
-    // Calculamos fecha fin: Inicio + Duración del servicio (en minutos)
     const fechaFin = new Date(fechaInicio.getTime() + service.duracion * 60000);
 
     const newAppointment = await prisma.appointment.create({
@@ -33,9 +31,9 @@ const createAppointment = async (req, res) => {
         clienteDni: clientDni,
         clientePhone: clientPhone,
         fechaInicio: fechaInicio,
-        fechaFin: fechaFin, // ¡AQUÍ ESTABA EL ERROR ANTES!
+        fechaFin: fechaFin,
         serviceId: parseInt(serviceId),
-        estado: "PENDIENTE" // Por defecto String
+        estado: "PENDIENTE"
       }
     });
 
@@ -46,17 +44,15 @@ const createAppointment = async (req, res) => {
   }
 };
 
-// 3. ACTUALIZAR ESTADO (Para Cobrar o Reprogramar)
+// 3. ACTUALIZAR (Reprogramar o Completar)
 const updateAppointment = async (req, res) => {
   const { id } = req.params;
-  const { estado, newDateISO } = req.body; // Recibimos estado ("COMPLETADO") o nueva fecha
+  const { estado, newDateISO } = req.body;
 
   try {
     let dataToUpdate = {};
-
     if (estado) dataToUpdate.estado = estado;
     
-    // Si estamos reprogramando, hay que recalcular la fecha fin
     if (newDateISO) {
         const appt = await prisma.appointment.findUnique({ where: { id: parseInt(id) }, include: { service: true }});
         const fechaInicio = new Date(newDateISO);
@@ -72,11 +68,11 @@ const updateAppointment = async (req, res) => {
 
     res.json(updatedAppointment);
   } catch (error) {
-    res.status(500).json({ error: 'Error al actualizar la cita' });
+    res.status(500).json({ error: 'Error al actualizar' });
   }
 };
 
-// 4. CANCELAR CITA
+// 4. CANCELAR (Ruta específica)
 const cancelAppointment = async (req, res) => {
     const { id } = req.params;
     try {
@@ -90,10 +86,12 @@ const cancelAppointment = async (req, res) => {
     }
 };
 
-// 5. BUSCAR POR DNI (Para el cliente)
+// 5. BUSCAR POR DNI (Esta es la nueva que seguro faltaba en rutas)
 const getAppointmentsByDni = async (req, res) => {
     const { dni } = req.params;
     try {
+        // Busca citas donde el clienteDni coincida
+        // OJO: Si tu base de datos usa otro nombre, ajusta aquí.
         const appts = await prisma.appointment.findMany({
             where: { clienteDni: dni },
             include: { service: true },
@@ -101,8 +99,16 @@ const getAppointmentsByDni = async (req, res) => {
         });
         res.json(appts);
     } catch (error) {
-        res.status(500).json({ error: 'Error buscando dni' });
+        console.error(error);
+        res.status(500).json({ error: 'Error buscando por DNI' });
     }
 };
 
-module.exports = { getAppointments, createAppointment, updateAppointment, cancelAppointment, getAppointmentsByDni };
+// IMPORTANTE: Asegúrate de que todas están aquí dentro de las llaves
+module.exports = { 
+    getAppointments, 
+    createAppointment, 
+    updateAppointment, 
+    cancelAppointment, 
+    getAppointmentsByDni 
+};
