@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, TextInput, NumberInput, Card, Grid, Menu, ScrollArea, Box, Collapse, Avatar, Center, Loader, Image } from '@mantine/core';
+import { AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, TextInput, NumberInput, Card, Grid, Menu, ScrollArea, Box, Collapse, Avatar, Center, Loader, Image, FileInput, SimpleGrid } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
-import { IconLogout, IconCalendar, IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId } from '@tabler/icons-react';
+import { IconLogout, IconCalendar, IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, IconUsersGroup } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -16,9 +16,10 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://loca
 export default function AdminDashboard() {
   const navigate = useNavigate();
   
-  // --- DATOS ---
+  // --- DATOS GLOBALES ---
   const [appointments, setAppointments] = useState([]);
   const [services, setServices] = useState([]);
+  const [barbers, setBarbers] = useState([]); // NUEVO: Estado para barberos
   
   // --- UI STATES ---
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -28,9 +29,12 @@ export default function AdminDashboard() {
   const [formService, setFormService] = useState({ id: null, nombre: '', minutos: 30, precio: 0 });
   const [isEditingService, setIsEditingService] = useState(false);
   
+  // ESTADO BARBEROS (NUEVO)
+  const [formBarber, setFormBarber] = useState({ nombre: '', telefono: '', imagenUrl: '' });
+
   // ESTADOS MODALES
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState({ id: null, type: null }); // type: 'service' | 'barber'
   const [showQRModal, setShowQRModal] = useState(false);
 
   const [pendingAppts, setPendingAppts] = useState([]);
@@ -52,10 +56,17 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [resAppts, resServices] = await Promise.all([api.get('/appointments'), api.get('/services')]);
+      // Cargamos Citas, Servicios y Barberos
+      const [resAppts, resServices, resBarbers] = await Promise.all([
+          api.get('/appointments'), 
+          api.get('/services'),
+          api.get('/barbers')
+      ]);
+      
       const sortedAppts = (resAppts.data || []).sort((a, b) => new Date(b.fechaInicio) - new Date(a.fechaInicio));
       setAppointments(sortedAppts);
       setServices(resServices.data);
+      setBarbers(resBarbers.data); // Guardamos barberos
       setPendingAppts(sortedAppts.filter(a => a.estado === 'PENDIENTE'));
     } catch (error) { console.error(error); }
   };
@@ -110,32 +121,39 @@ export default function AdminDashboard() {
     } catch(e) { notifications.show({ message: 'Error', color: 'red' }); }
   };
 
-  const handleEditClick = (s) => {
-      setFormService({ id: s.id, nombre: s.nombre, minutos: s.duracion || s.duracionMinutos || 30, precio: s.precio });
-      setIsEditingService(true);
+  // --- LOGICA BARBEROS (NUEVO) ---
+  const handleSaveBarber = async () => {
+      if(!formBarber.nombre) return notifications.show({message:'Nombre obligatorio', color:'red'});
+      try {
+          await api.post('/barbers', formBarber);
+          notifications.show({ message: 'Barbero registrado', color: 'green' });
+          setFormBarber({ nombre: '', telefono: '', imagenUrl: '' }); // Limpiar
+          fetchData(); // Recargar lista
+      } catch (e) { notifications.show({ message: 'Error al crear', color: 'red' }); }
   };
 
-  // ESTA FUNCION ABRE EL MODAL (Ya no usa window.confirm)
-  const handleDeleteClick = (id) => {
-      setServiceToDelete(id);
+  // --- MODAL ELIMINAR GENÉRICO ---
+  const openDeleteModal = (id, type) => {
+      setItemToDelete({ id, type });
       setDeleteModalOpen(true);
   };
 
-  // ESTA FUNCION EJECUTA EL BORRADO REAL
-  const confirmDeleteService = async () => {
+  const confirmDelete = async () => {
       try {
-        await api.delete(`/services/${serviceToDelete}`);
+        if(itemToDelete.type === 'service') await api.delete(`/services/${itemToDelete.id}`);
+        if(itemToDelete.type === 'barber') await api.delete(`/barbers/${itemToDelete.id}`);
+        
         fetchData(); 
-        notifications.show({ message: 'Servicio eliminado', color: 'green' });
+        notifications.show({ message: 'Eliminado correctamente', color: 'green' });
       } catch(e) {
-        notifications.show({ message: 'Error al eliminar', color: 'red' });
+        notifications.show({ message: 'Error al eliminar (Puede tener citas asociadas)', color: 'red' });
       }
       setDeleteModalOpen(false);
   };
 
-  // RENDERIZADO
+  // --- RENDERIZADO ---
   const renderSchedule = () => {
-      const hours = Array.from({length: 13}, (_, i) => i + 9); // 9am a 9pm
+      const hours = Array.from({length: 13}, (_, i) => i + 9);
       return (
           <ScrollArea h={600} type="always" offsetScrollbars>
               {hours.map(h => {
@@ -148,7 +166,7 @@ export default function AdminDashboard() {
                                 <Card key={appt.id} shadow="sm" padding="xs" radius="sm" onClick={() => setSelectedAppt(appt)}
                                   style={{marginBottom:'5px', background:'#25262b', borderLeft:`4px solid ${appt.estado==='COMPLETADO'?'#228be6':'#c49b63'}`, cursor:'pointer'}}>
                                   <Group justify="space-between"><Text size="sm" fw={700} c="white">{appt.clienteNombre}</Text><Badge size="xs" color="gray">{dayjs(appt.fechaInicio).format('HH:mm')}</Badge></Group>
-                                  <Text size="xs" c="dimmed">{appt.service?.nombre}</Text>
+                                  <Text size="xs" c="dimmed">{appt.service?.nombre} - {appt.barber?.nombre}</Text>
                                 </Card>
                               ))}
                           </div>
@@ -190,8 +208,10 @@ export default function AdminDashboard() {
                 <Tabs.Tab value="agenda" leftSection={<IconCalendar size={18}/>} c="white">Agenda</Tabs.Tab>
                 <Tabs.Tab value="finance" leftSection={<IconCurrencyDollar size={18}/>} c="white">Finanzas</Tabs.Tab>
                 <Tabs.Tab value="services" leftSection={<IconScissors size={18}/>} c="white">Servicios</Tabs.Tab>
+                <Tabs.Tab value="team" leftSection={<IconUsersGroup size={18}/>} c="white">Equipo</Tabs.Tab> {/* NUEVA PESTAÑA */}
             </Tabs.List>
 
+            {/* --- AGENDA --- */}
             <Tabs.Panel value="agenda">
                 <Grid>
                     <Grid.Col span={{ base: 12, md: 4 }}>
@@ -208,40 +228,26 @@ export default function AdminDashboard() {
                 </Grid>
             </Tabs.Panel>
 
+            {/* --- FINANZAS --- */}
             <Tabs.Panel value="finance">
                 <Grid>
-                    <Grid.Col span={12}>
-                        <Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}>
-                            <Group>
-                                <DatePickerInput label="Desde" value={finStartDate} onChange={setFinStartDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} />
-                                <IconArrowRight color="gray" style={{marginTop:'25px'}} />
-                                <DatePickerInput label="Hasta" value={finEndDate} onChange={setFinEndDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} />
-                                <Card p="xs" radius="sm" style={{background:'#1a472a', marginLeft:'auto', minWidth:'200px'}}><Text size="xs" c="white">GANANCIA REALIZADA</Text><Text size="xl" fw={900} c="white">S/. {finTotal.toFixed(2)}</Text></Card>
-                            </Group>
-                        </Card>
-                    </Grid.Col>
-                    <Grid.Col span={{base:12, md:6}}>
-                        <Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}>
-                            <ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{backgroundColor:'#222'}} /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer>
-                        </Card>
-                    </Grid.Col>
-                    <Grid.Col span={{base:12, md:6}}>
-                         <Card withBorder radius="md" p="0" style={{background:'#111', borderColor:'#333', height:'300px'}}><ScrollArea><Table><Table.Tbody>{finTrans.map(t=><Table.Tr key={t.id}><Table.Td style={{color:'#c49b63'}}>{dayjs(t.fechaInicio).format('DD/MM')}</Table.Td><Table.Td><Text size="sm" c="white">{t.clienteNombre}</Text><Text size="xs" c="dimmed">{t.service?.nombre}</Text></Table.Td><Table.Td c="white">+S/.{t.service?.precio}</Table.Td></Table.Tr>)}</Table.Tbody></Table></ScrollArea></Card>
-                    </Grid.Col>
+                    <Grid.Col span={12}><Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}><Group><DatePickerInput label="Desde" value={finStartDate} onChange={setFinStartDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><IconArrowRight color="gray" style={{marginTop:'25px'}} /><DatePickerInput label="Hasta" value={finEndDate} onChange={setFinEndDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><Card p="xs" radius="sm" style={{background:'#1a472a', marginLeft:'auto', minWidth:'200px'}}><Text size="xs" c="white">GANANCIA REALIZADA</Text><Text size="xl" fw={900} c="white">S/. {finTotal.toFixed(2)}</Text></Card></Group></Card></Grid.Col>
+                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{backgroundColor:'#222'}} /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer></Card></Grid.Col>
+                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="0" style={{background:'#111', borderColor:'#333', height:'300px'}}><ScrollArea><Table><Table.Tbody>{finTrans.map(t=><Table.Tr key={t.id}><Table.Td style={{color:'#c49b63'}}>{dayjs(t.fechaInicio).format('DD/MM')}</Table.Td><Table.Td><Text size="sm" c="white">{t.clienteNombre}</Text><Text size="xs" c="dimmed">{t.service?.nombre}</Text></Table.Td><Table.Td c="white">+S/.{t.service?.precio}</Table.Td></Table.Tr>)}</Table.Tbody></Table></ScrollArea></Card></Grid.Col>
                 </Grid>
             </Tabs.Panel>
             
+            {/* --- SERVICIOS --- */}
             <Tabs.Panel value="services">
                  <Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}>
                     <Group align="flex-end" mb="lg">
                         <TextInput label="Nombre" value={formService.nombre} onChange={(e)=>setFormService({...formService, nombre: e.target.value})} styles={{input:{background:'#333', color:'white'}, label:{color:'white'}}}/>
                         <NumberInput label="Minutos" value={formService.minutos} onChange={(val)=>setFormService({...formService, minutos: val})} styles={{input:{background:'#333', color:'white'}, label:{color:'white'}}}/>
                         <NumberInput label="Precio" value={formService.precio} onChange={(val)=>setFormService({...formService, precio: val})} styles={{input:{background:'#333', color:'white'}, label:{color:'white'}}}/>
-                        <Button color={isEditingService ? "blue" : "yellow"} onClick={handleSaveService} styles={{root:{color:'black'}}}>{isEditingService ? "GUARDAR CAMBIOS" : "AGREGAR"}</Button>
-                        {isEditingService && <Button variant="default" onClick={()=>{setIsEditingService(false); setFormService({id:null, nombre:'', minutos:30, precio:0})}}>Cancelar</Button>}
+                        <Button color={isEditingService?"blue":"yellow"} onClick={handleSaveService} styles={{root:{color:'black'}}}>{isEditingService?"GUARDAR":"AGREGAR"}</Button>
+                        {isEditingService && <Button variant="default" onClick={()=>{setIsEditingService(false);setFormService({id:null,nombre:'',minutos:30,precio:0})}}>Cancelar</Button>}
                     </Group>
                     <Table>
-                        {/* TABLA CORREGIDA CON COLUMNA DURACION */}
                         <Table.Thead><Table.Tr><Table.Th c="dimmed">Nombre</Table.Th><Table.Th c="dimmed">Duración</Table.Th><Table.Th c="dimmed">Precio</Table.Th><Table.Th>Acciones</Table.Th></Table.Tr></Table.Thead>
                         <Table.Tbody>
                             {services.map(s => (
@@ -251,8 +257,8 @@ export default function AdminDashboard() {
                                     <Table.Td style={{color:'#c49b63'}}>S/.{s.precio}</Table.Td>
                                     <Table.Td>
                                         <Group gap="xs">
-                                            <ActionIcon color="blue" variant="subtle" onClick={() => handleEditClick(s)}><IconPencil size={16}/></ActionIcon>
-                                            <ActionIcon color="red" variant="subtle" onClick={() => handleDeleteClick(s.id)}><IconTrash size={16}/></ActionIcon>
+                                            <ActionIcon color="blue" variant="subtle" onClick={() => {setFormService({id:s.id, nombre:s.nombre, minutos:s.duracion, precio:s.precio}); setIsEditingService(true)}}><IconPencil size={16}/></ActionIcon>
+                                            <ActionIcon color="red" variant="subtle" onClick={() => openDeleteModal(s.id, 'service')}><IconTrash size={16}/></ActionIcon>
                                         </Group>
                                     </Table.Td>
                                 </Table.Tr>
@@ -261,28 +267,81 @@ export default function AdminDashboard() {
                     </Table>
                 </Card>
             </Tabs.Panel>
+
+            {/* --- EQUIPO (BARBEROS) - NUEVA PESTAÑA --- */}
+            <Tabs.Panel value="team">
+                <Grid>
+                    {/* Formulario Agregar Barbero */}
+                    <Grid.Col span={{base:12, md:4}}>
+                        <Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333'}}>
+                            <Text fw={700} c="white" mb="md" tt="uppercase">Nuevo Barbero</Text>
+                            <Box mb="md">
+                                <Center mb="xs">
+                                    <Avatar src={formBarber.imagenUrl} size={100} radius="100%" color="yellow">
+                                        {formBarber.nombre ? formBarber.nombre.charAt(0) : <IconUser/>}
+                                    </Avatar>
+                                </Center>
+                                <Text size="xs" c="dimmed" ta="center">Vista Previa</Text>
+                            </Box>
+                            
+                            <TextInput label="Nombre Completo" placeholder="Ej. Juan Pérez" mb="sm"
+                                value={formBarber.nombre} onChange={(e) => setFormBarber({...formBarber, nombre: e.target.value})}
+                                styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}}
+                            />
+                            <TextInput label="Teléfono (Opcional)" placeholder="Ej. 999..." mb="sm"
+                                value={formBarber.telefono} onChange={(e) => setFormBarber({...formBarber, telefono: e.target.value})}
+                                styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}}
+                            />
+                            <TextInput label="URL Foto de Perfil" placeholder="https://..." mb="lg"
+                                value={formBarber.imagenUrl} onChange={(e) => setFormBarber({...formBarber, imagenUrl: e.target.value})}
+                                styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}}
+                                rightSection={<IconPhoto size={16} color="gray"/>}
+                            />
+                            <Button fullWidth color="yellow" onClick={handleSaveBarber} styles={{root:{color:'black'}}}>REGISTRAR BARBERO</Button>
+                        </Card>
+                    </Grid.Col>
+
+                    {/* Lista de Barberos */}
+                    <Grid.Col span={{base:12, md:8}}>
+                        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+                            {barbers.map(barber => (
+                                <Card key={barber.id} withBorder radius="md" p="md" style={{background:'#1a1a1a', borderColor:'#333', textAlign:'center'}}>
+                                    <Card.Section>
+                                        <Image src={barber.imagenUrl || "https://raw.githubusercontent.com/mantinedev/mantine/master/.demo/images/bg-7.png"} h={160} alt={barber.nombre} />
+                                    </Card.Section>
+                                    <Avatar src={barber.imagenUrl} size={80} radius={80} mx="auto" mt={-30} style={{border:'4px solid #1a1a1a'}} />
+                                    <Text fw={700} c="white" mt="sm">{barber.nombre}</Text>
+                                    <Text size="sm" c="dimmed" mb="md">{barber.telefono || 'Sin teléfono'}</Text>
+                                    
+                                    <Button color="red" variant="light" fullWidth mt="auto" leftSection={<IconTrash size={16}/>} onClick={() => openDeleteModal(barber.id, 'barber')}>
+                                        Eliminar
+                                    </Button>
+                                </Card>
+                            ))}
+                        </SimpleGrid>
+                    </Grid.Col>
+                </Grid>
+            </Tabs.Panel>
+
         </Tabs>
 
-        {/* MODAL QR */}
+        {/* MODALES COMPARTIDOS */}
         <Modal opened={showQRModal} onClose={() => setShowQRModal(false)} title="WhatsApp" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
-            <Center style={{flexDirection:'column'}}>
-                {waStatus === 'READY' ? <IconBrandWhatsapp size={80} color="#40c057"/> : waQR ? <Image src={waQR} w={250} /> : <Loader color="yellow" />}
-            </Center>
+            <Center style={{flexDirection:'column'}}>{waStatus==='READY'?<IconBrandWhatsapp size={80} color="#40c057"/>:waQR?<Image src={waQR} w={250}/>:<Loader color="yellow"/>}</Center>
         </Modal>
 
-        {/* MODAL CITA - CON TODOS LOS DATOS */}
         <Modal opened={!!selectedAppt} onClose={() => setSelectedAppt(null)} title="Gestión de Cita" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
             {selectedAppt && (
                 <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                     <Group justify="space-between">
                         <div>
                             <Text size="lg" fw={700} c="white">{selectedAppt.clienteNombre}</Text>
-                            <Text size="sm" c="yellow" fw={700} tt="uppercase">{selectedAppt.service?.nombre}</Text>
+                            <Text size="sm" c="yellow">{selectedAppt.service?.nombre}</Text>
+                            <Text size="xs" c="dimmed">Barbero: {selectedAppt.barber?.nombre || 'Cualquiera'}</Text>
                         </div>
-                        <Badge color={selectedAppt.estado === 'COMPLETADO' ? 'blue' : selectedAppt.estado === 'PENDIENTE' ? 'yellow' : 'red'}>{selectedAppt.estado}</Badge>
+                        <Badge color={selectedAppt.estado==='COMPLETADO'?'blue':'yellow'}>{selectedAppt.estado}</Badge>
                     </Group>
                     
-                    {/* DATOS COMPLETOS DE LA CITA */}
                     <Card withBorder style={{background:'#1a1a1a', borderColor:'#333', padding:'10px'}}>
                         <Group mb={5}><IconId size={16} color="gray"/><Text size="sm" c="dimmed">DNI: <span style={{color:'white'}}>{selectedAppt.clienteDni}</span></Text></Group>
                         <Group mb={5}><IconPhone size={16} color="gray"/><Text size="sm" c="dimmed">Tel: <span style={{color:'white'}}>{selectedAppt.clientePhone}</span></Text></Group>
@@ -292,23 +351,15 @@ export default function AdminDashboard() {
                     {selectedAppt.estado !== 'COMPLETADO' && selectedAppt.estado !== 'CANCELADO' && (
                         <Button leftSection={<IconCheck size={20}/>} color="blue" fullWidth onClick={handleConfirmCut}>Confirmar y Cobrar (S/.{selectedAppt.service?.precio})</Button>
                     )}
-
-                    <Button leftSection={<IconMessage size={18}/>} color="green" variant="light" fullWidth onClick={() => sendWhatsAppInternal(selectedAppt, 'avisar')}>Avisar Cliente (Recordatorio)</Button>
-                    
-                    <Button color="red" variant="subtle" fullWidth onClick={async () => {
-                         if(window.confirm('¿Cancelar?')) { await api.put(`/appointments/${selectedAppt.id}/cancel`); sendWhatsAppInternal(selectedAppt, 'cancel'); fetchData(); setSelectedAppt(null); }
-                    }}>Cancelar Cita</Button>
+                    <Button leftSection={<IconMessage size={18}/>} color="green" variant="light" fullWidth onClick={() => sendWhatsAppInternal(selectedAppt, 'avisar')}>Avisar Cliente</Button>
+                    <Button color="red" variant="subtle" fullWidth onClick={async () => { if(window.confirm('¿Cancelar?')) { await api.put(`/appointments/${selectedAppt.id}/cancel`); sendWhatsAppInternal(selectedAppt, 'cancel'); fetchData(); setSelectedAppt(null); } }}>Cancelar Cita</Button>
                 </div>
             )}
         </Modal>
 
-        {/* MODAL ELIMINAR SERVICIO (Ya no usa alert) */}
-        <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="¿Eliminar Servicio?" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
-            <Text c="dimmed" size="sm" mb="lg">Esta acción borrará el servicio permanentemente.</Text>
-            <Group justify="flex-end">
-                <Button variant="default" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button>
-                <Button color="red" onClick={confirmDeleteService}>Eliminar</Button>
-            </Group>
+        <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="¿Borrar?" centered styles={{header:{background:'#222', color:'white'}, body:{background:'#222', color:'white'}}}>
+            <Text c="dimmed" size="sm" mb="lg">Esta acción es irreversible.</Text>
+            <Group justify="flex-end"><Button variant="default" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button><Button color="red" onClick={confirmDelete}>Eliminar</Button></Group>
         </Modal>
       </AppShell.Main>
     </AppShell>
