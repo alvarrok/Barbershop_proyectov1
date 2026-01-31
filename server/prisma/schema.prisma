@@ -7,41 +7,84 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- ENUMS (Para evitar errores de texto) ---
+enum EstadoCita {
+  PENDIENTE
+  CONFIRMADO
+  CANCELADO
+  COMPLETADO
+}
+
+// --- MODELOS ---
+
 model Admin {
-  id        Int       @id @default(autoincrement())
-  nombre    String    @db.VarChar(100)
-  email     String    @unique @db.VarChar(150)
-  password  String    @map("password_hash") @db.VarChar(255)
-  createdAt DateTime? @default(now()) @map("creado_en") @db.Timestamp(6)
+  id        Int      @id @default(autoincrement())
+  nombre    String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(150)
+  password  String   @map("password_hash") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("creado_en") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("actualizado_en") @db.Timestamp(6)
 
   @@map("admins")
+}
+
+model Barber {
+  id           Int           @id @default(autoincrement())
+  nombre       String        @db.VarChar(100)
+  telefono     String?       @db.VarChar(20)
+  imagenUrl    String?       @map("imagen_url") @db.VarChar(500) // <--- NUEVO CAMPO
+  activo       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @map("creado_en")
+  appointments Appointment[]
+
+  @@map("barbers")
 }
 
 model Service {
   id           Int           @id @default(autoincrement())
   nombre       String        @db.VarChar(100)
-  descripcion  String?
+  descripcion  String?       @db.VarChar(255)
   precio       Decimal       @db.Decimal(10, 2)
-  duracion     Int           @map("duracion_minutos")
-  activo       Boolean?      @default(true)
+  duracion     Int           @map("duracion_minutos") // En minutos (ej: 30, 45)
+  activo       Boolean       @default(true)
+  
+  // Relación: Un servicio aparece en muchas citas
   appointments Appointment[]
 
   @@map("services")
 }
 
 model Appointment {
-  id            Int       @id @default(autoincrement())
-  clienteNombre String    @map("cliente_nombre") @db.VarChar(100)
-  clienteDni    String    @map("cliente_dni") @db.VarChar(20)
-  clientePhone  String    @map("cliente_telefono") @db.VarChar(20)
-  fechaInicio   DateTime  @map("fecha_cita") @db.Timestamp(6)
-  fechaFin      DateTime  @map("fecha_fin") @db.Timestamp(6)
-  estado        String?   @default("PENDIENTE") @db.VarChar(20)
-  serviceId     Int       @map("service_id")
-  createdAt     DateTime? @default(now()) @map("creado_en") @db.Timestamp(6)
-  service       Service   @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "fk_servicio")
+  id            Int      @id @default(autoincrement())
+  
+  // Datos del Cliente
+  clienteNombre String   @map("cliente_nombre") @db.VarChar(100)
+  clienteDni    String   @map("cliente_dni") @db.VarChar(20)
+  clientePhone  String   @map("cliente_telefono") @db.VarChar(20)
+  
+  // Datos de Tiempo
+  fechaInicio   DateTime @map("fecha_cita") @db.Timestamp(6)
+  fechaFin      DateTime @map("fecha_fin") @db.Timestamp(6) // Calculado autom. (Inicio + Duración)
+  
+  // Estado (Usando Enum para seguridad)
+  estado        EstadoCita @default(PENDIENTE)
+  
+  // Relaciones
+  serviceId     Int      @map("service_id")
+  service       Service  @relation(fields: [serviceId], references: [id], onUpdate: NoAction)
 
+  barberId      Int      @map("barber_id")
+  barber        Barber   @relation(fields: [barberId], references: [id], onUpdate: NoAction)
+
+  // Auditoría
+  createdAt     DateTime @default(now()) @map("creado_en") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("actualizado_en") @db.Timestamp(6)
+
+  // Índices para búsquedas rápidas
   @@index([clientePhone], map: "idx_cliente_telefono")
+  @@index([clienteDni], map: "idx_cliente_dni")
   @@index([fechaInicio], map: "idx_fecha_cita")
+  @@index([barberId], map: "idx_barbero") // Para filtrar calendario por barbero rápido
+  
   @@map("appointments")
 }

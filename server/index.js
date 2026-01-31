@@ -4,9 +4,10 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
-// Importar rutas y controladores
+// --- IMPORTAR CONTROLADORES Y RUTAS ---
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const serviceController = require('./controllers/serviceController');
+const barberController = require('./controllers/barberController'); // <--- NUEVO IMPORT
 
 // --- WHATSAPP SERVICE ---
 const { initializeWhatsApp, sendMessage, getStatus } = require('./services/whatsappService');
@@ -14,9 +15,9 @@ const { initializeWhatsApp, sendMessage, getStatus } = require('./services/whats
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
-const SECRET_KEY = "mi_secreto_super_seguro";
+const SECRET_KEY = process.env.JWT_SECRET || "mi_secreto_super_seguro";
 
-// Middlewares (CORS Configurado para aceptar todo)
+// --- MIDDLEWARES ---
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -24,61 +25,69 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 1. INICIALIZAR WHATSAPP
+// --- INICIALIZAR WHATSAPP ---
 initializeWhatsApp();
 
-// --- RUTAS WHATSAPP ---
-app.get('/api/whatsapp/status', (req, res) => {
-    res.json(getStatus());
+// ==========================================
+//                 RUTAS API
+// ==========================================
+
+// 1. AUTENTICACIÓN (LOGIN)
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const admin = await prisma.admin.findUnique({ where: { email } });
+        if (!admin || admin.password !== password) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+        const token = jwt.sign({ id: admin.id, name: admin.nombre }, SECRET_KEY, { expiresIn: '8h' });
+        res.json({ token, user: admin.nombre });
+    } catch (error) {
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
 });
+
+// 2. WHATSAPP
+app.get('/api/whatsapp/status', (req, res) => res.json(getStatus()));
 
 app.post('/api/send-whatsapp', async (req, res) => {
     const { phone, message } = req.body;
-    
-    if (!phone || !message) {
-        return res.status(400).json({ error: 'Faltan datos (phone o message)' });
-    }
+    if (!phone || !message) return res.status(400).json({ error: 'Faltan datos' });
 
     const result = await sendMessage(phone, message);
-    
-    if (result.success) {
-        res.json({ message: 'Mensaje enviado correctamente' });
-    } else {
-        res.status(500).json({ error: 'Error al enviar mensaje', details: result });
-    }
+    if (result.success) res.json({ message: 'Enviado' });
+    else res.status(500).json({ error: 'Error al enviar', details: result });
 });
 
-// --- RUTAS DE CITAS ---
+// 3. CITAS (Usan su propio archivo de rutas)
 app.use('/api/appointments', appointmentRoutes);
 
-// --- RUTAS DE SERVICIOS (CRUD) ---
+// 4. SERVICIOS (CRUD)
 app.get('/api/services', serviceController.getServices);
 app.post('/api/services', serviceController.createService);
+app.put('/api/services/:id', serviceController.updateService);
 app.delete('/api/services/:id', serviceController.deleteService);
-app.put('/api/services/:id', serviceController.updateService); // <--- AGREGA ESTA LÍNEA
-// --- RUTA LOGIN ADMIN ---
-app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-    const admin = await prisma.admin.findUnique({ where: { email } });
 
-    if (!admin || admin.password !== password) {
-        return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
+// 5. BARBEROS (CRUD) - ¡ESTAS FALTABAN!
+app.get('/api/barbers', barberController.getBarbers);
+app.post('/api/barbers', barberController.createBarber);
+app.delete('/api/barbers/:id', barberController.deleteBarber);
 
-    const token = jwt.sign({ id: admin.id, name: admin.nombre }, SECRET_KEY, { expiresIn: '8h' });
-    res.json({ token, user: admin.nombre });
-});
 
-// --- SALVAVIDAS: Evitar que el server muera si WhatsApp falla ---
+// ==========================================
+//           MANEJO DE ERRORES
+// ==========================================
+
+// Evitar que el server muera por errores de WhatsApp o Puppeteer
 process.on('uncaughtException', (err) => {
-    console.error('🔥 Error no capturado (El servidor sigue vivo):', err);
+    console.error('🔥 Error crítico no capturado:', err);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('🔥 Promesa rechazada sin manejo (El servidor sigue vivo):', reason);
+    console.error('🔥 Promesa rechazada sin manejo:', reason);
 });
 
-// --- INICIAR SERVIDOR (Solo UNA vez al final) ---
+// INICIAR SERVIDOR
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    console.log(`🚀 Servidor BarberShop listo en puerto ${PORT}`);
 });
