@@ -3,7 +3,7 @@ import axios from 'axios';
 import { AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, SimpleGrid, Select, Tooltip } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
-import { IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, IconUsersGroup, IconUserOff, IconUserCheck, IconGenderMale, IconGenderFemale } from '@tabler/icons-react';
+import { IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, IconUsers, IconUserOff, IconUserCheck, IconGenderMale, IconGenderFemale } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   // --- UI STATES ---
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedAppt, setSelectedAppt] = useState(null);
-  const [loadingAction, setLoadingAction] = useState(false); // <--- NUEVO: Para bloquear botones mientras carga
+  const [loadingAction, setLoadingAction] = useState(false);
   
   // ESTADOS FORMULARIOS
   const [formService, setFormService] = useState({ id: null, nombre: '', minutos: 30, precio: 0 });
@@ -55,23 +55,31 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [resAppts, resServices, resBarbers] = await Promise.all([
+      // Usamos Promise.allSettled para que si falla UNO (ej: barberos), los demás carguen igual
+      const results = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
           api.get('/barbers?todos=true') 
       ]);
-      setAppointments((resAppts.data || []).sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)));
-      setServices(resServices.data);
-      setBarbers(resBarbers.data);
-    } catch (e) { console.error(e); }
+
+      const resAppts = results[0].status === 'fulfilled' ? results[0].value.data : [];
+      const resServices = results[1].status === 'fulfilled' ? results[1].value.data : [];
+      const resBarbers = results[2].status === 'fulfilled' ? results[2].value.data : [];
+
+      // Validamos que sean Arrays para evitar PANTALLA BLANCA
+      setAppointments(Array.isArray(resAppts) ? resAppts.sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)) : []);
+      setServices(Array.isArray(resServices) ? resServices : []);
+      setBarbers(Array.isArray(resBarbers) ? resBarbers : []);
+
+    } catch (e) { console.error("Error fetching data:", e); }
   };
 
   const checkWhatsAppStatus = async () => { try { const res = await api.get('/whatsapp/status'); setWaStatus(res.data.status); setWaQR(res.data.qr); } catch (e) {} };
 
-  // --- LOGICA BARBEROS (CRUD MEJORADO) ---
+  // --- LOGICA BARBEROS ---
   const handleSaveBarber = async () => {
       if(!formBarber.nombre || !formBarber.dni) return notifications.show({message:'Nombre y DNI obligatorios', color:'red'});
-      setLoadingAction(true); // Bloquear botón
+      setLoadingAction(true);
       try {
           if(isEditingBarber) {
               await api.put(`/barbers/${formBarber.id}`, formBarber);
@@ -83,28 +91,18 @@ export default function AdminDashboard() {
           setFormBarber(initialBarberForm);
           setIsEditingBarber(false);
           fetchData();
-      } catch (e) { notifications.show({ message: 'Error al guardar (Revisa DNI duplicado)', color: 'red' }); }
-      setLoadingAction(false); // Desbloquear
+      } catch (e) { notifications.show({ message: e.response?.data?.error || 'Error al guardar', color: 'red' }); }
+      setLoadingAction(false);
   };
 
-  const handleEditBarberClick = (b) => {
-      setFormBarber(b);
-      setIsEditingBarber(true);
-  };
+  const handleEditBarberClick = (b) => { setFormBarber(b); setIsEditingBarber(true); };
 
   const toggleBarberStatus = async (b) => {
-      // Optimistic Update: Cambia visualmente rápido, luego confirma
-      const previousState = barbers;
-      setBarbers(barbers.map(bar => bar.id === b.id ? { ...bar, activo: !bar.activo } : bar));
-      
       try {
           await api.put(`/barbers/${b.id}`, { activo: !b.activo });
           notifications.show({ message: `Estado actualizado`, color: 'green' });
           fetchData();
-      } catch(e) { 
-          setBarbers(previousState); // Revertir si falla
-          notifications.show({ message: 'Error al cambiar estado', color: 'red' }); 
-      }
+      } catch(e) { notifications.show({ message: 'Error al cambiar estado', color: 'red' }); }
   };
 
   // --- LOGICA SERVICIOS ---
@@ -156,7 +154,7 @@ export default function AdminDashboard() {
   // RENDERERS
   const renderSchedule = () => {
       const hours = Array.from({length: 13}, (_, i) => i + 9);
-      return ( <ScrollArea h={600} type="always" offsetScrollbars> {hours.map(h => { const hourAppts = appointments.filter(a => dayjs(a.fechaInicio).isSame(selectedDate, 'day') && dayjs(a.fechaInicio).hour() === h && a.estado !== 'CANCELADO'); return ( <div key={h} style={{display:'flex', borderBottom:'1px solid #333', minHeight:'80px'}}> <div style={{width:'70px', borderRight:'1px solid #333', padding:'15px 5px', color:'#777', fontWeight:'bold'}}>{h}:00</div> <div style={{flex:1, padding:'5px'}}> {hourAppts.map(appt => ( <Card key={appt.id} shadow="sm" padding="xs" radius="sm" onClick={() => setSelectedAppt(appt)} style={{marginBottom:'5px', background:'#25262b', borderLeft:`4px solid ${appt.estado==='COMPLETADO'?'#228be6':'#c49b63'}`, cursor:'pointer'}}> <Group justify="space-between"><Text size="sm" fw={700} c="white">{appt.clienteNombre}</Text><Badge size="xs" color="gray">{dayjs(appt.fechaInicio).format('HH:mm')}</Badge></Group> <Text size="xs" c="dimmed">{appt.service?.nombre} - {appt.barber?.nombre}</Text> </Card> ))} </div> </div> ) })} </ScrollArea> )
+      return ( <ScrollArea h={600} type="always" offsetScrollbars> {hours.map(h => { const hourAppts = appointments.filter(a => dayjs(a.fechaInicio).isSame(selectedDate, 'day') && dayjs(a.fechaInicio).hour() === h && a.estado !== 'CANCELADO'); return ( <div key={h} style={{display:'flex', borderBottom:'1px solid #333', minHeight:'80px'}}> <div style={{width:'70px', borderRight:'1px solid #333', padding:'15px 5px', color:'#777', fontWeight:'bold'}}>{h}:00</div> <div style={{flex:1, padding:'5px'}}> {hourAppts.map(appt => ( <Card key={appt.id} shadow="sm" padding="xs" radius="sm" onClick={() => setSelectedAppt(appt)} style={{marginBottom:'5px', background:'#25262b', borderLeft:`4px solid ${appt.estado==='COMPLETADO'?'#228be6':'#c49b63'}`, cursor:'pointer'}}> <Group justify="space-between"><Text size="sm" fw={700} c="white">{appt.clienteNombre}</Text><Badge size="xs" color="gray">{dayjs(appt.fechaInicio).format('HH:mm')}</Badge></Group> <Text size="xs" c="dimmed">{appt.service?.nombre} {appt.barber ? `- ${appt.barber.nombre}` : ''}</Text> </Card> ))} </div> </div> ) })} </ScrollArea> )
   };
 
   const { finTotal, finGraph, finTrans } = (() => {
@@ -185,7 +183,7 @@ export default function AdminDashboard() {
                 <Tabs.Tab value="agenda" leftSection={<IconCalendar size={18}/>} c="white">Agenda</Tabs.Tab>
                 <Tabs.Tab value="finance" leftSection={<IconCurrencyDollar size={18}/>} c="white">Finanzas</Tabs.Tab>
                 <Tabs.Tab value="services" leftSection={<IconScissors size={18}/>} c="white">Servicios</Tabs.Tab>
-                <Tabs.Tab value="team" leftSection={<IconUsersGroup size={18}/>} c="white">Equipo</Tabs.Tab>
+                <Tabs.Tab value="team" leftSection={<IconUsers size={18}/>} c="white">Equipo</Tabs.Tab>
             </Tabs.List>
 
             {/* --- AGENDA --- */}
@@ -289,8 +287,8 @@ export default function AdminDashboard() {
                                             <Tooltip label="Editar datos">
                                                 <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
                                             </Tooltip>
-                                            <Tooltip label={b.activo ? "Dar de baja" : "Activar"}>
-                                                <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" onClick={() => toggleBarberStatus(b)}>
+                                            <Tooltip label={b.activo ? "Dar de baja (ocultar)" : "Activar"}>
+                                                <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" loading={loadingAction} onClick={() => toggleBarberStatus(b)}>
                                                     {b.activo ? <IconUserOff size={20}/> : <IconUserCheck size={20}/>}
                                                 </ActionIcon>
                                             </Tooltip>
