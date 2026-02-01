@@ -31,14 +31,12 @@ model Admin {
 model Barber {
   id           Int           @id @default(autoincrement())
   nombre       String        @db.VarChar(100)
-  dni          String        @unique @db.VarChar(8)  // <--- NUEVO: DNI Único
+  dni          String        @unique @db.VarChar(8)
   telefono     String?       @db.VarChar(20)
-  sexo         String?       @db.VarChar(20)         // <--- NUEVO: Sexo
-  imagenUrl    String?       @map("imagen_url") @db.VarChar(500)
-  activo       Boolean       @default(true)          // Para borrado lógico (Dar de baja)
+  sexo         String?       @db.VarChar(20)
+  imagenUrl    String?       // <--- AQUI ESTA EL CAMBIO: Ya no tiene limite de tamaño
+  activo       Boolean       @default(true)
   createdAt    DateTime      @default(now()) @map("creado_en")
-  
-  // Relación: Un barbero tiene muchas citas
   appointments Appointment[]
 
   @@map("barbers")
