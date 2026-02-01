@@ -1,26 +1,30 @@
+// server/controllers/barberController.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// 1. Obtener lista
+// 1. OBTENER LISTA (Solo los activos para el cliente, todos para el admin)
 const getBarbers = async (req, res) => {
     try {
-        const barbers = await prisma.barber.findMany({ where: { activo: true } });
+        // Si viene un query param ?todos=true devolvemos todos, si no, solo los activos
+        const whereClause = req.query.todos === 'true' ? {} : { activo: true };
+        const barbers = await prisma.barber.findMany({ where: whereClause });
         res.json(barbers);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener barberos' });
     }
 };
 
-// 2. Crear barbero (Con imagen)
+// 2. CREAR BARBERO (Con nuevos datos)
 const createBarber = async (req, res) => {
     try {
-        const { nombre, telefono, imagenUrl } = req.body;
+        const { nombre, dni, telefono, sexo, imagenUrl } = req.body;
+        
+        // Validar si ya existe el DNI
+        const existing = await prisma.barber.findUnique({ where: { dni } });
+        if(existing) return res.status(400).json({ error: 'El DNI ya está registrado' });
+
         const newBarber = await prisma.barber.create({
-            data: { 
-                nombre, 
-                telefono,
-                imagenUrl // Guardamos la URL
-            } 
+            data: { nombre, dni, telefono, sexo, imagenUrl, activo: true } 
         });
         res.json(newBarber);
     } catch (error) {
@@ -29,26 +33,31 @@ const createBarber = async (req, res) => {
     }
 };
 
-// 3. Eliminar barbero (Borrado lógico o físico si no tiene citas)
-const deleteBarber = async (req, res) => {
+// 3. ACTUALIZAR BARBERO (Para Modificar o Dar de Baja/Activar)
+const updateBarber = async (req, res) => {
     const { id } = req.params;
+    const data = req.body; // Puede venir { nombre: ... } o { activo: false }
     try {
-        // Opción: Borrado físico (solo si no tiene citas ligadas)
-        // Para simplificar, lo desactivamos o borramos. 
-        // Usaremos delete con try/catch por si tiene citas (Foreing Key constraint)
-        try {
-            await prisma.barber.delete({ where: { id: parseInt(id) } });
-        } catch (fkError) {
-            // Si falla porque tiene citas, lo desactivamos
-            await prisma.barber.update({ 
-                where: { id: parseInt(id) }, 
-                data: { activo: false } 
-            });
-        }
-        res.json({ message: 'Barbero eliminado/desactivado' });
+        const updatedBarber = await prisma.barber.update({
+            where: { id: parseInt(id) },
+            data: data
+        });
+        res.json(updatedBarber);
     } catch (error) {
-        res.status(500).json({ error: 'Error al eliminar barbero' });
+        res.status(500).json({ error: 'Error al actualizar barbero' });
     }
 };
 
-module.exports = { getBarbers, createBarber, deleteBarber };
+// 4. ELIMINAR FÍSICAMENTE (Hard Delete - Cuidado)
+const deleteBarber = async (req, res) => {
+    const { id } = req.params;
+    try {
+        await prisma.barber.delete({ where: { id: parseInt(id) } });
+        res.json({ message: 'Barbero eliminado permanentemente' });
+    } catch (error) {
+        // Si falla es probablemente porque tiene citas asociadas
+        res.status(400).json({ error: 'No se puede eliminar porque tiene historial de citas. Use "Dar de baja".' });
+    }
+};
+
+module.exports = { getBarbers, createBarber, updateBarber, deleteBarber };

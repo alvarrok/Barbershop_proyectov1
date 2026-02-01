@@ -71,6 +71,7 @@ app.delete('/api/services/:id', serviceController.deleteService);
 // 5. BARBEROS (CRUD) - ¡ESTAS FALTABAN!
 app.get('/api/barbers', barberController.getBarbers);
 app.post('/api/barbers', barberController.createBarber);
+app.put('/api/barbers/:id', barberController.updateBarber); // <--- ¡ASEGURA ESTA!
 app.delete('/api/barbers/:id', barberController.deleteBarber);
 
 

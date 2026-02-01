@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- ENUMS (Para evitar errores de texto) ---
+// --- ENUMS ---
 enum EstadoCita {
   PENDIENTE
   CONFIRMADO
@@ -31,10 +31,14 @@ model Admin {
 model Barber {
   id           Int           @id @default(autoincrement())
   nombre       String        @db.VarChar(100)
+  dni          String        @unique @db.VarChar(8)  // <--- NUEVO: DNI Único
   telefono     String?       @db.VarChar(20)
-  imagenUrl    String?       @map("imagen_url") @db.VarChar(500) // <--- NUEVO CAMPO
-  activo       Boolean       @default(true)
+  sexo         String?       @db.VarChar(20)         // <--- NUEVO: Sexo
+  imagenUrl    String?       @map("imagen_url") @db.VarChar(500)
+  activo       Boolean       @default(true)          // Para borrado lógico (Dar de baja)
   createdAt    DateTime      @default(now()) @map("creado_en")
+  
+  // Relación: Un barbero tiene muchas citas
   appointments Appointment[]
 
   @@map("barbers")
@@ -45,10 +49,9 @@ model Service {
   nombre       String        @db.VarChar(100)
   descripcion  String?       @db.VarChar(255)
   precio       Decimal       @db.Decimal(10, 2)
-  duracion     Int           @map("duracion_minutos") // En minutos (ej: 30, 45)
+  duracion     Int           @map("duracion_minutos")
   activo       Boolean       @default(true)
   
-  // Relación: Un servicio aparece en muchas citas
   appointments Appointment[]
 
   @@map("services")
@@ -64,9 +67,9 @@ model Appointment {
   
   // Datos de Tiempo
   fechaInicio   DateTime @map("fecha_cita") @db.Timestamp(6)
-  fechaFin      DateTime @map("fecha_fin") @db.Timestamp(6) // Calculado autom. (Inicio + Duración)
+  fechaFin      DateTime @map("fecha_fin") @db.Timestamp(6)
   
-  // Estado (Usando Enum para seguridad)
+  // Estado
   estado        EstadoCita @default(PENDIENTE)
   
   // Relaciones
@@ -80,11 +83,11 @@ model Appointment {
   createdAt     DateTime @default(now()) @map("creado_en") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("actualizado_en") @db.Timestamp(6)
 
-  // Índices para búsquedas rápidas
+  // Índices
   @@index([clientePhone], map: "idx_cliente_telefono")
   @@index([clienteDni], map: "idx_cliente_dni")
   @@index([fechaInicio], map: "idx_fecha_cita")
-  @@index([barberId], map: "idx_barbero") // Para filtrar calendario por barbero rápido
+  @@index([barberId], map: "idx_barbero") 
   
   @@map("appointments")
 }
