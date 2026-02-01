@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+// SOLUCIÓN DEL CONFLICTO: Renombramos Tooltip a MantineTooltip aquí mismo
 import { 
   AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
   TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
-  SimpleGrid, Select, Tooltip as MantineTooltip // <--- RENOMBRADO PARA EVITAR EL CONFLICTO
+  SimpleGrid, Select, Tooltip as MantineTooltip 
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
+// Usamos iconos seguros
 import { 
   IconCalendar, IconScissors, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, 
   IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, 
@@ -14,6 +16,7 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
+// SOLUCIÓN DEL CONFLICTO: Renombramos Tooltip a RechartsTooltip
 import { 
   AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
@@ -24,7 +27,7 @@ import 'dayjs/locale/es';
 dayjs.locale('es');
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
-// Constante fuera del componente
+// Sacamos la constante fuera del componente para evitar errores de renderizado
 const initialBarberForm = { id: null, nombre: '', dni: '', telefono: '', sexo: 'Masculino', imagenUrl: '' };
 
 export default function AdminDashboard() {
@@ -69,7 +72,7 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      // Usamos allSettled para que si falla una petición (ej: barberos), NO rompa toda la página
+      // BLINDAJE: Usamos allSettled. Si falla la API de barberos, NO rompe la página entera.
       const results = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
@@ -80,12 +83,12 @@ export default function AdminDashboard() {
       const resServices = results[1].status === 'fulfilled' ? results[1].value.data : [];
       const resBarbers = results[2].status === 'fulfilled' ? results[2].value.data : [];
 
-      // Validamos que sean Arrays
+      // Validamos que sean Arrays para evitar errores de .map()
       setAppointments(Array.isArray(resAppts) ? resAppts.sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)) : []);
       setServices(Array.isArray(resServices) ? resServices : []);
       setBarbers(Array.isArray(resBarbers) ? resBarbers : []);
 
-    } catch (e) { console.error("Error cargando datos:", e); }
+    } catch (e) { console.error("Error crítico cargando datos:", e); }
   };
 
   const checkWhatsAppStatus = async () => { try { const res = await api.get('/whatsapp/status'); setWaStatus(res.data.status); setWaQR(res.data.qr); } catch (e) {} };
@@ -146,7 +149,7 @@ export default function AdminDashboard() {
       setDeleteModalOpen(false);
   };
 
-  // --- WHATSAPP ---
+  // --- WHATSAPP & COBROS ---
   const sendWhatsAppInternal = async (appt, type) => {
       if (waStatus !== 'READY') { setShowQRModal(true); return notifications.show({ message: 'Conecta WhatsApp', color: 'red' }); }
       const phone = appt.clientePhone.replace(/\D/g, '');
@@ -298,6 +301,7 @@ export default function AdminDashboard() {
                                         {b.telefono && <Group justify="center" gap={5} c="dimmed" size="sm" mb="md"><IconPhone size={16}/><Text>{b.telefono}</Text></Group>}
 
                                         <Group grow>
+                                            {/* AQUÍ ESTABA EL PROBLEMA: USAMOS MANTINETOOLTIP AHORA */}
                                             <MantineTooltip label="Editar datos">
                                                 <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
                                             </MantineTooltip>
