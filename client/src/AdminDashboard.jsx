@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+// CORRECCIÓN CRÍTICA: Eliminado 'Tooltip' de Mantine para evitar conflicto con Recharts
 import { 
   AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
   TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
   SimpleGrid, Select 
-  // NOTA: He quitado 'Tooltip' de aquí para evitar el crash crítico
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
@@ -15,7 +15,7 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-// Ahora importamos Recharts sin miedo al conflicto
+// IMPORTAMOS RECHARTS SOLO (Sin alias, para que no haya dudas)
 import { 
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
+      // BLINDAJE: Si falla una petición, no rompe la página
       const results = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
@@ -297,7 +298,6 @@ export default function AdminDashboard() {
                                         {b.telefono && <Group justify="center" gap={5} c="dimmed" size="sm" mb="md"><IconPhone size={16}/><Text>{b.telefono}</Text></Group>}
 
                                         <Group grow>
-                                            {/* SIN TOOLTIPS PARA EVITAR EL CRASH */}
                                             <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
                                             <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" loading={loadingAction} onClick={() => toggleBarberStatus(b)}>
                                                 {b.activo ? <IconUserOff size={20}/> : <IconUserCheck size={20}/>}
