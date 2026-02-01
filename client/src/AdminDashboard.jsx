@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-// SOLUCIÓN DEL CONFLICTO: Renombramos Tooltip a MantineTooltip aquí mismo
 import { 
   AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
   TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
-  SimpleGrid, Select, Tooltip as MantineTooltip 
+  SimpleGrid, Select 
+  // NOTA: He quitado 'Tooltip' de aquí para evitar el crash crítico
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
-// Usamos iconos seguros
 import { 
   IconCalendar, IconScissors, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, 
   IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, 
@@ -16,9 +15,9 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-// SOLUCIÓN DEL CONFLICTO: Renombramos Tooltip a RechartsTooltip
+// Ahora importamos Recharts sin miedo al conflicto
 import { 
-  AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid 
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
@@ -27,7 +26,7 @@ import 'dayjs/locale/es';
 dayjs.locale('es');
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
-// Sacamos la constante fuera del componente para evitar errores de renderizado
+// Constante fuera del componente
 const initialBarberForm = { id: null, nombre: '', dni: '', telefono: '', sexo: 'Masculino', imagenUrl: '' };
 
 export default function AdminDashboard() {
@@ -65,14 +64,12 @@ export default function AdminDashboard() {
     if (!localStorage.getItem('adminToken')) navigate('/admin');
     fetchData();
     checkWhatsAppStatus();
-    // Polling cada 15s para actualizar datos
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
     try {
-      // BLINDAJE: Usamos allSettled. Si falla la API de barberos, NO rompe la página entera.
       const results = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
@@ -83,12 +80,11 @@ export default function AdminDashboard() {
       const resServices = results[1].status === 'fulfilled' ? results[1].value.data : [];
       const resBarbers = results[2].status === 'fulfilled' ? results[2].value.data : [];
 
-      // Validamos que sean Arrays para evitar errores de .map()
       setAppointments(Array.isArray(resAppts) ? resAppts.sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)) : []);
       setServices(Array.isArray(resServices) ? resServices : []);
       setBarbers(Array.isArray(resBarbers) ? resBarbers : []);
 
-    } catch (e) { console.error("Error crítico cargando datos:", e); }
+    } catch (e) { console.error("Error cargando datos:", e); }
   };
 
   const checkWhatsAppStatus = async () => { try { const res = await api.get('/whatsapp/status'); setWaStatus(res.data.status); setWaQR(res.data.qr); } catch (e) {} };
@@ -215,7 +211,7 @@ export default function AdminDashboard() {
             <Tabs.Panel value="finance">
                 <Grid>
                     <Grid.Col span={12}><Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}><Group><DatePickerInput label="Desde" value={finStartDate} onChange={setFinStartDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><IconArrowRight color="gray" style={{marginTop:'25px'}} /><DatePickerInput label="Hasta" value={finEndDate} onChange={setFinEndDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><Card p="xs" radius="sm" style={{background:'#1a472a', marginLeft:'auto', minWidth:'200px'}}><Text size="xs" c="white">GANANCIA REALIZADA</Text><Text size="xl" fw={900} c="white">S/. {finTotal.toFixed(2)}</Text></Card></Group></Card></Grid.Col>
-                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><RechartsTooltip contentStyle={{backgroundColor:'#222'}} /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer></Card></Grid.Col>
+                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{backgroundColor:'#222'}} /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer></Card></Grid.Col>
                     <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="0" style={{background:'#111', borderColor:'#333', height:'300px'}}><ScrollArea><Table><Table.Tbody>{finTrans.map(t=><Table.Tr key={t.id}><Table.Td style={{color:'#c49b63'}}>{dayjs(t.fechaInicio).format('DD/MM')}</Table.Td><Table.Td><Text size="sm" c="white">{t.clienteNombre}</Text><Text size="xs" c="dimmed">{t.service?.nombre}</Text></Table.Td><Table.Td c="white">+S/.{t.service?.precio}</Table.Td></Table.Tr>)}</Table.Tbody></Table></ScrollArea></Card></Grid.Col>
                 </Grid>
             </Tabs.Panel>
@@ -301,18 +297,12 @@ export default function AdminDashboard() {
                                         {b.telefono && <Group justify="center" gap={5} c="dimmed" size="sm" mb="md"><IconPhone size={16}/><Text>{b.telefono}</Text></Group>}
 
                                         <Group grow>
-                                            {/* AQUÍ ESTABA EL PROBLEMA: USAMOS MANTINETOOLTIP AHORA */}
-                                            <MantineTooltip label="Editar datos">
-                                                <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
-                                            </MantineTooltip>
-                                            <MantineTooltip label={b.activo ? "Dar de baja" : "Activar"}>
-                                                <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" loading={loadingAction} onClick={() => toggleBarberStatus(b)}>
-                                                    {b.activo ? <IconUserOff size={20}/> : <IconUserCheck size={20}/>}
-                                                </ActionIcon>
-                                            </MantineTooltip>
-                                            <MantineTooltip label="Eliminar permanentemente">
-                                                <ActionIcon variant="light" color="red" size="lg" radius="md" onClick={() => openDeleteModal(b.id, 'barber')}><IconTrash size={20}/></ActionIcon>
-                                            </MantineTooltip>
+                                            {/* SIN TOOLTIPS PARA EVITAR EL CRASH */}
+                                            <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
+                                            <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" loading={loadingAction} onClick={() => toggleBarberStatus(b)}>
+                                                {b.activo ? <IconUserOff size={20}/> : <IconUserCheck size={20}/>}
+                                            </ActionIcon>
+                                            <ActionIcon variant="light" color="red" size="lg" radius="md" onClick={() => openDeleteModal(b.id, 'barber')}><IconTrash size={20}/></ActionIcon>
                                         </Group>
                                     </Box>
                                 </Card>
