@@ -7,6 +7,7 @@ import {
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
+// IMPORTAMOS TODOS LOS ICONOS NECESARIOS (Incluido IconArrowRight que faltaba)
 import { 
   IconCalendar, IconScissors, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, 
   IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, 
@@ -17,9 +18,12 @@ import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
+// IMPORTANTE: Plugin para "hace 5 minutos"
+import relativeTime from 'dayjs/plugin/relativeTime'; 
 
 // --- CONFIGURACIÓN ---
 dayjs.locale('es');
+dayjs.extend(relativeTime); // ACTIVAMOS EL PLUGIN
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
 // --- ESTADO INICIAL ---

@@ -1,14 +1,29 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// 1. OBTENER TODAS LAS CITAS (Incluyendo Barbero)
+// Función auxiliar para verificar disponibilidad del barbero
+const checkBarberAvailability = async (barberId, start, end, excludeApptId = null) => {
+    const overlapping = await prisma.appointment.findFirst({
+        where: {
+            barberId: parseInt(barberId),
+            estado: { not: 'CANCELADO' }, // Ignorar canceladas
+            id: excludeApptId ? { not: parseInt(excludeApptId) } : undefined, // Ignorar la misma cita al editar
+            OR: [
+                // La nueva cita empieza dentro de otra existente
+                { AND: [{ fechaInicio: { lte: start } }, { fechaFin: { gt: start } }] },
+                // La nueva cita termina dentro de otra existente
+                { AND: [{ fechaInicio: { lt: end } }, { fechaFin: { gte: end } }] }
+            ]
+        }
+    });
+    return !overlapping; // Retorna true si está libre
+};
+
+// 1. OBTENER TODAS
 const getAppointments = async (req, res) => {
   try {
     const appointments = await prisma.appointment.findMany({
-      include: { 
-        service: true,
-        barber: true // <--- AGREGADO: Para ver el nombre del barbero en la tabla
-      },
+      include: { service: true, barber: true },
       orderBy: { fechaInicio: 'desc' }
     });
     res.json(appointments);
@@ -17,25 +32,26 @@ const getAppointments = async (req, res) => {
   }
 };
 
-// 2. CREAR CITA (CORREGIDO PARA RELACIONES)
+// 2. CREAR CITA (Con validación de Barbero)
 const createAppointment = async (req, res) => {
   try {
-    // 1. Recibimos barberId del frontend
     const { clientName, clientDni, clientPhone, dateISO, serviceId, barberId } = req.body;
 
-    // 2. Validación estricta
-    if (!serviceId || !barberId) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios (Servicio o Barbero)' });
-    }
+    if (!serviceId || !barberId) return res.status(400).json({ error: 'Falta servicio o barbero' });
 
-    // 3. Obtener duración del servicio para calcular hora fin
+    // Obtener servicio para saber duración
     const service = await prisma.service.findUnique({ where: { id: parseInt(serviceId) } });
     if (!service) return res.status(400).json({ error: 'Servicio no encontrado' });
 
     const fechaInicio = new Date(dateISO);
-    const fechaFin = new Date(fechaInicio.getTime() + (service.duracion || 30) * 60000); // 30 min por defecto si falla
+    const fechaFin = new Date(fechaInicio.getTime() + (service.duracion || 30) * 60000);
 
-    // 4. Crear la cita usando "connect" para las relaciones
+    // VERIFICAR DISPONIBILIDAD DEL BARBERO
+    const isAvailable = await checkBarberAvailability(barberId, fechaInicio, fechaFin);
+    if (!isAvailable) {
+        return res.status(400).json({ error: 'El barbero ya tiene una cita en ese horario.' });
+    }
+
     const newAppointment = await prisma.appointment.create({
       data: {
         clienteNombre: clientName,
@@ -44,7 +60,7 @@ const createAppointment = async (req, res) => {
         fechaInicio: fechaInicio,
         fechaFin: fechaFin,
         estado: "PENDIENTE",
-        // USAMOS CONNECT PARA EVITAR ERRORES DE RELACIÓN
+        // USAMOS CONNECT PARA EVITAR EL ERROR "Service is missing"
         service: { connect: { id: parseInt(serviceId) } },
         barber: { connect: { id: parseInt(barberId) } }
       }
@@ -52,42 +68,59 @@ const createAppointment = async (req, res) => {
 
     res.json(newAppointment);
   } catch (error) {
-    console.error("Error creando cita:", error);
-    // Devolvemos el detalle del error para que sepas qué pasó en los logs de Render
-    res.status(500).json({ error: 'Error al crear la cita', details: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear cita' });
   }
 };
 
-// 3. ACTUALIZAR (Reprogramar o Completar)
+// 3. ACTUALIZAR (Reprogramar validando Barbero)
 const updateAppointment = async (req, res) => {
   const { id } = req.params;
   const { estado, newDateISO } = req.body;
 
   try {
+    const apptId = parseInt(id);
     let dataToUpdate = {};
+    
     if (estado) dataToUpdate.estado = estado;
     
+    // SI SE CAMBIA LA FECHA, VALIDAR DISPONIBILIDAD DEL BARBERO
     if (newDateISO) {
-        const appt = await prisma.appointment.findUnique({ where: { id: parseInt(id) }, include: { service: true }});
+        // Obtenemos la cita actual para saber duración y barbero
+        const currentAppt = await prisma.appointment.findUnique({ 
+            where: { id: apptId }, 
+            include: { service: true } 
+        });
+
+        if (!currentAppt) return res.status(404).json({ error: 'Cita no encontrada' });
+
         const fechaInicio = new Date(newDateISO);
-        const fechaFin = new Date(fechaInicio.getTime() + (appt.service.duracion || 30) * 60000);
+        const fechaFin = new Date(fechaInicio.getTime() + (currentAppt.service.duracion || 30) * 60000);
+
+        // Validamos si el barbero de esa cita está libre en la nueva hora
+        const isAvailable = await checkBarberAvailability(currentAppt.barberId, fechaInicio, fechaFin, apptId);
+        
+        if (!isAvailable) {
+            return res.status(400).json({ error: 'El barbero no está disponible en ese nuevo horario.' });
+        }
+
         dataToUpdate.fechaInicio = fechaInicio;
         dataToUpdate.fechaFin = fechaFin;
     }
 
     const updatedAppointment = await prisma.appointment.update({
-      where: { id: parseInt(id) },
+      where: { id: apptId },
       data: dataToUpdate,
-      include: { service: true, barber: true } // Devolvemos datos completos
+      include: { service: true, barber: true }
     });
 
     res.json(updatedAppointment);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al actualizar' });
   }
 };
 
-// 4. CANCELAR
 const cancelAppointment = async (req, res) => {
     const { id } = req.params;
     try {
@@ -101,21 +134,16 @@ const cancelAppointment = async (req, res) => {
     }
 };
 
-// 5. BUSCAR POR DNI (Para "Mis Citas")
 const getAppointmentsByDni = async (req, res) => {
     const { dni } = req.params;
     try {
         const appts = await prisma.appointment.findMany({
             where: { clienteDni: dni },
-            include: { 
-                service: true,
-                barber: true // <--- AGREGADO: El cliente quiere ver con quién reservó
-            },
+            include: { service: true, barber: true },
             orderBy: { fechaInicio: 'desc' }
         });
         res.json(appts);
     } catch (error) {
-        console.error(error);
         res.status(500).json({ error: 'Error buscando por DNI' });
     }
 };
