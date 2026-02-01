@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
   TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
-  SimpleGrid, Select, Tooltip as MantineTooltip // <--- RENOMBRADO PARA EVITAR CONFLICTOS
+  SimpleGrid, Select, Tooltip as MantineTooltip // <--- RENOMBRADO PARA EVITAR EL CONFLICTO
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
@@ -24,7 +24,7 @@ import 'dayjs/locale/es';
 dayjs.locale('es');
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
-// Constante fuera del componente para evitar recreación
+// Constante fuera del componente
 const initialBarberForm = { id: null, nombre: '', dni: '', telefono: '', sexo: 'Masculino', imagenUrl: '' };
 
 export default function AdminDashboard() {
@@ -69,22 +69,22 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [resAppts, resServices, resBarbers] = await Promise.allSettled([
+      // Usamos allSettled para que si falla una petición (ej: barberos), NO rompa toda la página
+      const results = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
           api.get('/barbers?todos=true') 
       ]);
 
-      // Usamos Promise.allSettled para que si falla uno, no rompa todo (Pantalla Blanca)
-      if (resAppts.status === 'fulfilled') {
-          setAppointments((resAppts.value.data || []).sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)));
-      }
-      if (resServices.status === 'fulfilled') {
-          setServices(resServices.value.data || []);
-      }
-      if (resBarbers.status === 'fulfilled') {
-          setBarbers(resBarbers.value.data || []);
-      }
+      const resAppts = results[0].status === 'fulfilled' ? results[0].value.data : [];
+      const resServices = results[1].status === 'fulfilled' ? results[1].value.data : [];
+      const resBarbers = results[2].status === 'fulfilled' ? results[2].value.data : [];
+
+      // Validamos que sean Arrays
+      setAppointments(Array.isArray(resAppts) ? resAppts.sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)) : []);
+      setServices(Array.isArray(resServices) ? resServices : []);
+      setBarbers(Array.isArray(resBarbers) ? resBarbers : []);
+
     } catch (e) { console.error("Error cargando datos:", e); }
   };
 
