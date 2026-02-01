@@ -17,7 +17,7 @@ import './App.css';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 
-// Imagen de fondo de alta calidad
+// Imagen de fondo de alta calidad (Barbería Real)
 const heroImage = "https://images.unsplash.com/photo-1503951914875-452162b7f30a?q=80&w=2070&auto=format&fit=crop";
 
 const api = axios.create({ 
