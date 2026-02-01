@@ -17,29 +17,34 @@ import './App.css';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 
-// Imagen de fondo de alta calidad (Barbería Real)
-const heroImage = "https://images.unsplash.com/photo-1503951914875-452162b7f30a?q=80&w=2070&auto=format&fit=crop";
+// IMAGEN DE FONDO DE BARBERÍA (Oscura y Profesional)
+const heroImage = "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=2074&auto=format&fit=crop";
 
 const api = axios.create({ 
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' 
 });
 
-// Estilos personalizados para inputs modernos (Solución al error visual)
+// --- ESTILOS DE INPUTS (AQUÍ ESTÁ EL ARREGLO DE LOS ICONOS) ---
 const inputStyles = {
     input: {
-        background: '#222', 
-        border: '1px solid #444', 
+        background: '#1f1f1f', 
+        border: '1px solid #333', 
         color: 'white', 
         height: '50px',
-        paddingLeft: '50px', // <--- ESTO ARREGLA QUE EL ICONO SE MONTE EN EL TEXTO
-        fontSize: '1rem'
+        paddingLeft: '45px', // <--- ESTO EMPUJA EL TEXTO PARA QUE NO TOQUE EL ICONO
+        fontSize: '1rem',
+        borderRadius: '8px'
     },
     label: {
-        color: '#888', 
+        color: '#aaa', 
         marginBottom: '8px', 
         fontSize: '0.85rem', 
-        letterSpacing: '1px',
-        fontWeight: 600
+        letterSpacing: '0.5px',
+        fontWeight: 600,
+        textTransform: 'uppercase'
+    },
+    section: {
+        pointerEvents: 'none' // Para poder hacer click a través del icono si es necesario
     }
 };
 
@@ -84,7 +89,6 @@ function Home() {
           
           const takenTimes = res.data
             .filter(a => {
-                // Ajuste de fecha para comparación correcta
                 const citaDate = new Date(a.fechaInicio);
                 return citaDate.toDateString() === selectedDate.toDateString() 
                     && a.estado !== 'CANCELADO'
@@ -96,7 +100,7 @@ function Home() {
             });
 
           const slots = [];
-          for (let h = 9; h < 20; h++) { // Horario 9am a 8pm
+          for (let h = 9; h < 20; h++) { 
               ['00', '30'].forEach(m => {
                   const timeString = `${h}:${m}`;
                   slots.push({ time: timeString, taken: takenTimes.includes(timeString) });
@@ -114,27 +118,22 @@ function Home() {
 
     setLoading(true);
     try {
-        // --- CORRECCIÓN DE FECHA ---
-        // Construimos la fecha manualmente para evitar el cambio de día por zona horaria
         const [hh, mm] = form.time.split(':');
         const year = form.date.getFullYear();
         const month = form.date.getMonth();
         const day = form.date.getDate();
         
-        // Creamos la fecha exacta en hora local
         const finalDate = new Date(year, month, day, parseInt(hh), parseInt(mm));
 
         await api.post('/appointments', { 
             ...form, 
-            dateISO: finalDate, // Axios enviará esto y el backend lo procesará
+            dateISO: finalDate, 
             barberId: parseInt(form.barberId) 
         });
 
-        notifications.show({ title: '¡Reserva Exitosa!', message: 'Te esperamos en la barbería.', color: 'green', icon: <IconCheck/> });
+        notifications.show({ title: '¡Reserva Exitosa!', message: 'Te esperamos.', color: 'green', icon: <IconCheck/> });
         setForm({ clientName: '', clientDni: '', clientPhone: '', serviceId: '', barberId: null, date: null, time: null });
         setAvailableSlots([]);
-        
-        // Scroll arriba suavemente
         window.scrollTo({top: 0, behavior: 'smooth'});
 
     } catch (error) {
@@ -166,61 +165,58 @@ function Home() {
   };
 
   return (
-    <div className="app-container" style={{backgroundColor: '#0a0a0a', minHeight: '100vh', color: 'white'}}>
+    <div className="app-container" style={{backgroundColor: '#050505', minHeight: '100vh', color: 'white', fontFamily: 'Montserrat, sans-serif'}}>
       
-      {/* --- HEADER MODERNO GLASSMORPHISM --- */}
+      {/* --- HEADER --- */}
       <header style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '80px', 
-          background: 'rgba(10, 10, 10, 0.7)', backdropFilter: 'blur(15px)', 
-          borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 1000, 
-          display: 'flex', alignItems: 'center', transition: 'all 0.3s ease'
+          background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', 
+          borderBottom: '1px solid rgba(196, 155, 99, 0.2)', zIndex: 1000, 
+          display: 'flex', alignItems: 'center'
       }}>
           <Container size="xl" style={{width: '100%'}}>
             <Group justify="space-between" h="100%">
                 <Group gap={8} style={{cursor:'pointer'}} onClick={() => window.scrollTo({top:0, behavior:'smooth'})}>
-                    <div style={{background: 'var(--primary-gold)', borderRadius: '8px', padding: '6px'}}>
-                        <IconScissors size={24} color="black" stroke={2.5}/>
-                    </div>
-                    <Text size="xl" fw={900} c="white" style={{letterSpacing:'-0.5px', fontFamily: 'Montserrat, sans-serif'}}>
-                        BARBER<span style={{color:'var(--primary-gold)'}}>PRO</span>
+                    <IconScissors size={28} color="var(--primary-gold)" />
+                    <Text size="xl" fw={900} c="white" style={{letterSpacing:'-1px'}}>
+                        BARBER<span style={{color:'var(--primary-gold)'}}>SHOP</span>
                     </Text>
                 </Group>
                 <Group gap="md" visibleFrom="sm">
                     <Button variant="subtle" color="gray" onClick={() => document.getElementById('booking-area').scrollIntoView({behavior:'smooth'})}>Reservar</Button>
                     <Button variant="subtle" color="gray" onClick={() => document.getElementById('my-appointments').scrollIntoView({behavior:'smooth'})}>Mis Citas</Button>
-                    <Button variant="outline" color="yellow" radius="xl" onClick={() => navigate('/admin')} leftSection={<IconUserCircle size={18}/>} styles={{root:{borderColor: 'var(--primary-gold)', color: 'var(--primary-gold)', '&:hover': {backgroundColor: 'rgba(196, 155, 99, 0.1)'}}}}>Soy Admin</Button>
+                    <Button variant="outline" color="yellow" radius="xl" onClick={() => navigate('/admin')} leftSection={<IconUserCircle size={18}/>} styles={{root:{borderColor: 'var(--primary-gold)', color: 'var(--primary-gold)'}}}>Admin</Button>
                 </Group>
             </Group>
           </Container>
       </header>
 
-      {/* --- HERO SECTION --- */}
+      {/* --- HERO SECTION CON IMAGEN DE FONDO --- */}
       <section style={{
-          position: 'relative', height: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `linear-gradient(to bottom, rgba(0,0,0,0.3), #0a0a0a), url(${heroImage}) center/cover no-repeat`
+          position: 'relative', height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `linear-gradient(to bottom, rgba(0,0,0,0.6), #050505), url(${heroImage}) center/cover no-repeat`
       }}>
-          <Container size="md" style={{textAlign: 'center', zIndex: 2, position: 'relative', top: '20px'}}>
-              <Badge variant="filled" color="yellow" size="lg" mb="xl" style={{color: 'black', fontWeight: 'bold'}}>MEJOR BARBERÍA 2026</Badge>
-              <Title order={1} style={{fontSize: '3.5rem', lineHeight: 1.1, color: 'white', marginBottom: '24px', textShadow: '0 4px 30px rgba(0,0,0,0.5)', fontFamily: 'Montserrat, sans-serif'}}>
-                  Tu estilo define <br/> <span style={{color: 'var(--primary-gold)', fontStyle: 'italic'}}>tu legado.</span>
+          <Container size="md" style={{textAlign: 'center', zIndex: 2, position: 'relative'}}>
+              <Badge variant="filled" color="yellow" size="lg" mb="lg" style={{color: 'black', fontWeight: 'bold'}}>ESTILO & ELEGANCIA</Badge>
+              <Title order={1} style={{fontSize: '3.5rem', lineHeight: 1.1, color: 'white', marginBottom: '24px', textShadow: '0 4px 20px rgba(0,0,0,0.8)'}}>
+                  Tu mejor versión <br/> <span style={{color: 'var(--primary-gold)'}}>empieza aquí.</span>
               </Title>
-              <Text size="xl" c="gray" mb="xl" maw={600} mx="auto">Agenda tu cita en segundos. Los mejores barberos, los mejores cortes.</Text>
-              <Button size="xl" radius="xl" className="btn-glow" color="yellow" onClick={() => document.getElementById('booking-area').scrollIntoView({behavior:'smooth'})} rightSection={<IconArrowRight/>} styles={{root: {background: 'var(--primary-gold)', color: 'black', fontWeight: 700}}}>RESERVAR AHORA</Button>
+              <Button size="xl" radius="xl" color="yellow" onClick={() => document.getElementById('booking-area').scrollIntoView({behavior:'smooth'})} rightSection={<IconArrowRight/>} styles={{root: {background: 'var(--primary-gold)', color: 'black', fontWeight: 800, border: 'none'}}}>RESERVAR TURNO</Button>
           </Container>
       </section>
 
       {/* --- ÁREA PRINCIPAL --- */}
-      <Container size="xl" id="booking-area" py={80}>
+      <Container size="xl" id="booking-area" py={60}>
         <Grid gutter={50}>
             
-            {/* IZQUIERDA: FORMULARIO DE RESERVA */}
+            {/* IZQUIERDA: FORMULARIO */}
             <Grid.Col span={{ base: 12, md: 7 }}>
                 <Group mb="xl" align="center">
                     <IconCalendarEvent size={32} color="var(--primary-gold)"/>
-                    <Title order={2} c="white" style={{fontFamily: 'Montserrat, sans-serif'}}>NUEVA RESERVA</Title>
+                    <Title order={2} c="white">RESERVAR CITA</Title>
                 </Group>
                 
-                <Card padding={30} radius="xl" style={{background: '#141414', border: '1px solid #222', boxShadow: '0 20px 40px rgba(0,0,0,0.4)'}}>
+                <Card padding={30} radius="xl" style={{background: '#121212', border: '1px solid #2a2a2a', boxShadow: '0 10px 30px rgba(0,0,0,0.5)'}}>
                     <Stack gap="lg">
                         {/* DATOS CLIENTE */}
                         <Grid>
@@ -250,7 +246,7 @@ function Home() {
                             styles={{...inputStyles, dropdown:{background:'#222', color:'white', border:'1px solid #444'}}}
                         />
                         
-                        {/* SELECTOR BARBEROS (Grid Visual) */}
+                        {/* SELECTOR BARBEROS */}
                         <Box>
                             <Text size="sm" c="#888" fw={700} mb="sm" style={{letterSpacing:'1px', textTransform:'uppercase'}}>Elige tu Barbero</Text>
                             {barberos.length > 0 ? (
@@ -302,7 +298,7 @@ function Home() {
                             </Box>
                         )}
 
-                        <Button fullWidth size="xl" radius="md" color="yellow" mt="md" onClick={handleSubmit} loading={loading} disabled={!form.time} styles={{root: {background: 'var(--primary-gold)', color: 'black', fontWeight: 800}}}>
+                        <Button fullWidth size="xl" radius="md" color="yellow" mt="md" onClick={handleSubmit} loading={loading} disabled={!form.time} styles={{root: {background: 'var(--primary-gold)', color: 'black', fontWeight: 800, border: 'none'}}}>
                             CONFIRMAR CITA
                         </Button>
                     </Stack>
@@ -313,11 +309,11 @@ function Home() {
             <Grid.Col span={{ base: 12, md: 5 }} id="my-appointments">
                 <Group mb="xl" align="center">
                     <IconSearch size={32} color="var(--primary-gold)"/>
-                    <Title order={2} c="white" style={{fontFamily: 'Montserrat, sans-serif'}}>MIS RESERVAS</Title>
+                    <Title order={2} c="white">MIS RESERVAS</Title>
                 </Group>
                 
-                <Card padding={30} radius="xl" style={{background: '#141414', border: '1px solid #222', minHeight:'500px'}}>
-                    <Text c="dimmed" mb="lg">Ingresa tu DNI para ver el estado de tu cita, reprogramar o cancelar.</Text>
+                <Card padding={30} radius="xl" style={{background: '#121212', border: '1px solid #2a2a2a', minHeight:'500px'}}>
+                    <Text c="dimmed" mb="lg">Ingresa tu DNI para ver el estado de tu cita.</Text>
                     
                     <Group mb="xl" align="flex-start">
                         <TextInput placeholder="DNI (8 dígitos)" value={searchDni} onChange={(e) => setSearchDni(e.target.value.replace(/\D/g, ''))} maxLength={8} style={{flex:1}} 
@@ -354,13 +350,13 @@ function Home() {
                                             styles={{input:{background:'#252525', border:'1px solid #444', color:'white', fontSize:'0.8rem'}}} mb="sm"
                                         />
                                         <Group grow>
-                                            <Button variant="light" size="xs" color="yellow" disabled={!rescheduleDates[appt.id]} onClick={() => handleRescheduleClient(appt.id)}>Guardar Cambio</Button>
-                                            <Button variant="subtle" size="xs" color="red" onClick={() => handleCancelClient(appt.id)}>Cancelar Cita</Button>
+                                            <Button variant="light" size="xs" color="yellow" disabled={!rescheduleDates[appt.id]} onClick={() => handleRescheduleClient(appt.id)}>Guardar</Button>
+                                            <Button variant="subtle" size="xs" color="red" onClick={() => handleCancelClient(appt.id)}>Cancelar</Button>
                                         </Group>
                                     </div>
                                 )}
                             </Card>
-                        )) : (searchDni && !loading && <Text c="dimmed" align="center" mt="xl" fs="italic">No se encontraron citas con este DNI.</Text>)}
+                        )) : (searchDni && !loading && <Text c="dimmed" align="center" mt="xl" fs="italic">No se encontraron citas.</Text>)}
                     </Stack>
                 </Card>
             </Grid.Col>
