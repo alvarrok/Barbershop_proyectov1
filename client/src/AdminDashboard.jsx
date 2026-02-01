@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, SimpleGrid, Select, Tooltip } from '@mantine/core';
+import { 
+  AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
+  TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
+  SimpleGrid, Select, Tooltip as MantineTooltip // <--- RENOMBRADO PARA EVITAR CONFLICTOS
+} from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { DatePickerInput } from '@mantine/dates';
-import { IconScissors, IconBell, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, IconArrowRight, IconChartArea, IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, IconUsers, IconUserOff, IconUserCheck, IconGenderMale, IconGenderFemale } from '@tabler/icons-react';
+import { 
+  IconCalendar, IconScissors, IconTrash, IconUser, IconBrandWhatsapp, IconCurrencyDollar, 
+  IconCheck, IconPencil, IconMessage, IconClock, IconPhone, IconId, IconPhoto, 
+  IconUsers, IconUserOff, IconUserCheck, IconGenderMale, IconGenderFemale 
+} from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { 
+  AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid 
+} from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 
+// Configuración inicial
 dayjs.locale('es');
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
+
+// Constante fuera del componente para evitar recreación
+const initialBarberForm = { id: null, nombre: '', dni: '', telefono: '', sexo: 'Masculino', imagenUrl: '' };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -31,7 +45,6 @@ export default function AdminDashboard() {
   const [isEditingService, setIsEditingService] = useState(false);
   
   // ESTADO BARBEROS
-  const initialBarberForm = { id: null, nombre: '', dni: '', telefono: '', sexo: 'Masculino', imagenUrl: '' };
   const [formBarber, setFormBarber] = useState(initialBarberForm);
   const [isEditingBarber, setIsEditingBarber] = useState(false);
 
@@ -49,29 +62,30 @@ export default function AdminDashboard() {
     if (!localStorage.getItem('adminToken')) navigate('/admin');
     fetchData();
     checkWhatsAppStatus();
+    // Polling cada 15s para actualizar datos
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
     try {
-      // Usamos Promise.allSettled para que si falla UNO (ej: barberos), los demás carguen igual
-      const results = await Promise.allSettled([
+      const [resAppts, resServices, resBarbers] = await Promise.allSettled([
           api.get('/appointments'), 
           api.get('/services'),
           api.get('/barbers?todos=true') 
       ]);
 
-      const resAppts = results[0].status === 'fulfilled' ? results[0].value.data : [];
-      const resServices = results[1].status === 'fulfilled' ? results[1].value.data : [];
-      const resBarbers = results[2].status === 'fulfilled' ? results[2].value.data : [];
-
-      // Validamos que sean Arrays para evitar PANTALLA BLANCA
-      setAppointments(Array.isArray(resAppts) ? resAppts.sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)) : []);
-      setServices(Array.isArray(resServices) ? resServices : []);
-      setBarbers(Array.isArray(resBarbers) ? resBarbers : []);
-
-    } catch (e) { console.error("Error fetching data:", e); }
+      // Usamos Promise.allSettled para que si falla uno, no rompa todo (Pantalla Blanca)
+      if (resAppts.status === 'fulfilled') {
+          setAppointments((resAppts.value.data || []).sort((a,b)=>new Date(b.fechaInicio)-new Date(a.fechaInicio)));
+      }
+      if (resServices.status === 'fulfilled') {
+          setServices(resServices.value.data || []);
+      }
+      if (resBarbers.status === 'fulfilled') {
+          setBarbers(resBarbers.value.data || []);
+      }
+    } catch (e) { console.error("Error cargando datos:", e); }
   };
 
   const checkWhatsAppStatus = async () => { try { const res = await api.get('/whatsapp/status'); setWaStatus(res.data.status); setWaQR(res.data.qr); } catch (e) {} };
@@ -132,7 +146,7 @@ export default function AdminDashboard() {
       setDeleteModalOpen(false);
   };
 
-  // --- WHATSAPP & COBROS ---
+  // --- WHATSAPP ---
   const sendWhatsAppInternal = async (appt, type) => {
       if (waStatus !== 'READY') { setShowQRModal(true); return notifications.show({ message: 'Conecta WhatsApp', color: 'red' }); }
       const phone = appt.clientePhone.replace(/\D/g, '');
@@ -151,7 +165,7 @@ export default function AdminDashboard() {
       try { await api.put(`/appointments/${selectedAppt.id}`, { estado: 'COMPLETADO' }); notifications.show({ message: 'Cobrado', color: 'blue', icon: <IconCheck/> }); fetchData(); setSelectedAppt(null); } catch(e){}
   };
 
-  // RENDERERS
+  // --- RENDERERS ---
   const renderSchedule = () => {
       const hours = Array.from({length: 13}, (_, i) => i + 9);
       return ( <ScrollArea h={600} type="always" offsetScrollbars> {hours.map(h => { const hourAppts = appointments.filter(a => dayjs(a.fechaInicio).isSame(selectedDate, 'day') && dayjs(a.fechaInicio).hour() === h && a.estado !== 'CANCELADO'); return ( <div key={h} style={{display:'flex', borderBottom:'1px solid #333', minHeight:'80px'}}> <div style={{width:'70px', borderRight:'1px solid #333', padding:'15px 5px', color:'#777', fontWeight:'bold'}}>{h}:00</div> <div style={{flex:1, padding:'5px'}}> {hourAppts.map(appt => ( <Card key={appt.id} shadow="sm" padding="xs" radius="sm" onClick={() => setSelectedAppt(appt)} style={{marginBottom:'5px', background:'#25262b', borderLeft:`4px solid ${appt.estado==='COMPLETADO'?'#228be6':'#c49b63'}`, cursor:'pointer'}}> <Group justify="space-between"><Text size="sm" fw={700} c="white">{appt.clienteNombre}</Text><Badge size="xs" color="gray">{dayjs(appt.fechaInicio).format('HH:mm')}</Badge></Group> <Text size="xs" c="dimmed">{appt.service?.nombre} {appt.barber ? `- ${appt.barber.nombre}` : ''}</Text> </Card> ))} </div> </div> ) })} </ScrollArea> )
@@ -284,17 +298,17 @@ export default function AdminDashboard() {
                                         {b.telefono && <Group justify="center" gap={5} c="dimmed" size="sm" mb="md"><IconPhone size={16}/><Text>{b.telefono}</Text></Group>}
 
                                         <Group grow>
-                                            <Tooltip label="Editar datos">
+                                            <MantineTooltip label="Editar datos">
                                                 <ActionIcon variant="light" color="blue" size="lg" radius="md" onClick={() => handleEditBarberClick(b)}><IconPencil size={20}/></ActionIcon>
-                                            </Tooltip>
-                                            <Tooltip label={b.activo ? "Dar de baja (ocultar)" : "Activar"}>
+                                            </MantineTooltip>
+                                            <MantineTooltip label={b.activo ? "Dar de baja" : "Activar"}>
                                                 <ActionIcon variant="light" color={b.activo ? "orange" : "green"} size="lg" radius="md" loading={loadingAction} onClick={() => toggleBarberStatus(b)}>
                                                     {b.activo ? <IconUserOff size={20}/> : <IconUserCheck size={20}/>}
                                                 </ActionIcon>
-                                            </Tooltip>
-                                            <Tooltip label="Eliminar permanentemente">
+                                            </MantineTooltip>
+                                            <MantineTooltip label="Eliminar permanentemente">
                                                 <ActionIcon variant="light" color="red" size="lg" radius="md" onClick={() => openDeleteModal(b.id, 'barber')}><IconTrash size={20}/></ActionIcon>
-                                            </Tooltip>
+                                            </MantineTooltip>
                                         </Group>
                                     </Box>
                                 </Card>
