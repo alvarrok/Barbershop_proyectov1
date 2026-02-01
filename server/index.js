@@ -7,7 +7,7 @@ const { PrismaClient } = require('@prisma/client');
 // --- IMPORTAR CONTROLADORES Y RUTAS ---
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const serviceController = require('./controllers/serviceController');
-const barberController = require('./controllers/barberController'); // <--- NUEVO IMPORT
+const barberController = require('./controllers/barberController');
 
 // --- WHATSAPP SERVICE ---
 const { initializeWhatsApp, sendMessage, getStatus } = require('./services/whatsappService');
@@ -23,7 +23,11 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+
+// --- AQUÍ ESTÁ LA CORRECCIÓN CLAVE ---
+// Aumentamos el límite a 50mb para que entren las fotos en Base64
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- INICIALIZAR WHATSAPP ---
 initializeWhatsApp();
@@ -59,7 +63,7 @@ app.post('/api/send-whatsapp', async (req, res) => {
     else res.status(500).json({ error: 'Error al enviar', details: result });
 });
 
-// 3. CITAS (Usan su propio archivo de rutas)
+// 3. CITAS
 app.use('/api/appointments', appointmentRoutes);
 
 // 4. SERVICIOS (CRUD)
@@ -68,10 +72,10 @@ app.post('/api/services', serviceController.createService);
 app.put('/api/services/:id', serviceController.updateService);
 app.delete('/api/services/:id', serviceController.deleteService);
 
-// 5. BARBEROS (CRUD) - ¡ESTAS FALTABAN!
+// 5. BARBEROS (CRUD)
 app.get('/api/barbers', barberController.getBarbers);
 app.post('/api/barbers', barberController.createBarber);
-app.put('/api/barbers/:id', barberController.updateBarber); // <--- ¡ASEGURA ESTA!
+app.put('/api/barbers/:id', barberController.updateBarber);
 app.delete('/api/barbers/:id', barberController.deleteBarber);
 
 
@@ -79,7 +83,6 @@ app.delete('/api/barbers/:id', barberController.deleteBarber);
 //           MANEJO DE ERRORES
 // ==========================================
 
-// Evitar que el server muera por errores de WhatsApp o Puppeteer
 process.on('uncaughtException', (err) => {
     console.error('🔥 Error crítico no capturado:', err);
 });
