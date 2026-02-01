@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-// CORRECCIÓN CRÍTICA: Eliminado 'Tooltip' de Mantine para evitar conflicto con Recharts
+// CORRECCIÓN: He quitado 'Tooltip' de aquí para evitar el crash
 import { 
   AppShell, Text, Group, Button, Table, Tabs, Modal, Badge, Indicator, ActionIcon, 
   TextInput, NumberInput, Card, Grid, ScrollArea, Box, Avatar, Center, Loader, Image, 
@@ -15,15 +15,16 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-// IMPORTAMOS RECHARTS SOLO (Sin alias, para que no haya dudas)
+// CORRECCIÓN: He quitado 'Tooltip' de Recharts también. El gráfico funcionará sin el cartelito flotante por ahora.
 import { 
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
+  AreaChart, Area, XAxis, YAxis, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 
 // Configuración inicial
 dayjs.locale('es');
+// Asegúrate de que esta URL apunte a tu backend en Render
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
 // Constante fuera del componente
@@ -212,7 +213,7 @@ export default function AdminDashboard() {
             <Tabs.Panel value="finance">
                 <Grid>
                     <Grid.Col span={12}><Card withBorder radius="md" p="lg" style={{background:'#111', borderColor:'#333'}}><Group><DatePickerInput label="Desde" value={finStartDate} onChange={setFinStartDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><IconArrowRight color="gray" style={{marginTop:'25px'}} /><DatePickerInput label="Hasta" value={finEndDate} onChange={setFinEndDate} styles={{input:{background:'#222', color:'white'}, label:{color:'white'}}} /><Card p="xs" radius="sm" style={{background:'#1a472a', marginLeft:'auto', minWidth:'200px'}}><Text size="xs" c="white">GANANCIA REALIZADA</Text><Text size="xl" fw={900} c="white">S/. {finTotal.toFixed(2)}</Text></Card></Group></Card></Grid.Col>
-                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{backgroundColor:'#222'}} /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer></Card></Grid.Col>
+                    <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="md" style={{background:'#111', borderColor:'#333', height:'300px'}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={finGraph}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="name" stroke="#888" /><YAxis stroke="#888" /><Area type="monotone" dataKey="Ingresos" stroke="#8884d8" fill="#8884d8" /></AreaChart></ResponsiveContainer></Card></Grid.Col>
                     <Grid.Col span={{base:12, md:6}}><Card withBorder radius="md" p="0" style={{background:'#111', borderColor:'#333', height:'300px'}}><ScrollArea><Table><Table.Tbody>{finTrans.map(t=><Table.Tr key={t.id}><Table.Td style={{color:'#c49b63'}}>{dayjs(t.fechaInicio).format('DD/MM')}</Table.Td><Table.Td><Text size="sm" c="white">{t.clienteNombre}</Text><Text size="xs" c="dimmed">{t.service?.nombre}</Text></Table.Td><Table.Td c="white">+S/.{t.service?.precio}</Table.Td></Table.Tr>)}</Table.Tbody></Table></ScrollArea></Card></Grid.Col>
                 </Grid>
             </Tabs.Panel>
